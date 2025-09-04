@@ -18,14 +18,11 @@ export default function Timer() {
   const phase = useTimer((s) => s.phase);
   const isRunning = useTimer((s) => s.isRunning);
   const remainingMs = useTimer((s) => s.remainingMs);
-  // const durations = useTimer((s) => s.durations);
   const start = useTimer((s) => s.start);
   const pause = useTimer((s) => s.pause);
   const resume = useTimer((s) => s.resume);
   const setPhasePreview = useTimer((s) => s.setPhasePreview);
-  // const cycleCount = useTimer((s) => s.cycleCount);
 
-  // inside Timer component, under other consts
   const bgClass =
     phase === "BREAK_SHORT"
       ? "bg-emerald-50"
@@ -91,21 +88,6 @@ export default function Timer() {
   const ss = Math.floor((remainingMs % 60000) / 1000)
     .toString()
     .padStart(2, "0");
-
-  // const totalMs =
-  //   phase === "WORK"
-  //     ? durations.WORK
-  //     : phase == "BREAK_SHORT"
-  //     ? durations.BREAK_SHORT
-  //     : phase === "BREAK_LONG"
-  //     ? durations.BREAK_LONG
-  //     : 0;
-
-  // const progress = totalMs
-  //   ? Math.min(100, Math.max(0, ((totalMs - remainingMs) / totalMs) * 100))
-  //   : 0;
-
-  // Top buttons select phase only; center button starts
 
   const getPhaseButtonClass = (type: Exclude<Phase, "IDLE">) => {
     const isSelected = isRunning ? phase === type : selectedPhase === type;
