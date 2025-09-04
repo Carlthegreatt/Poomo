@@ -110,12 +110,12 @@ export default function Timer() {
   return (
     <main>
       <div
-        className={`flex-col flex  h-screen items-center justify-center gap-10 ${bgClass}`}
+        className={`flex-col flex  h-screen items-center justify-center gap-10`}
       >
         <div className="flex gap-4">
           <Button
             variant={"outline"}
-            className="rounded-full"
+            className={`rounded-full ${bgClass}`}
             disabled={isRunning}
             onClick={() => {
               setSelectedPhase("WORK");
@@ -126,7 +126,7 @@ export default function Timer() {
           </Button>
           <Button
             variant={"outline"}
-            className="rounded-full"
+            className="rounded-full active:bg-amber-600"
             disabled={isRunning}
             onClick={() => {
               setSelectedPhase("BREAK_SHORT");
