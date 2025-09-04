@@ -20,6 +20,9 @@ export default function Timer() {
   const remainingMs = useTimer((s) => s.remainingMs);
   const durations = useTimer((s) => s.durations);
   const start = useTimer((s) => s.start);
+  const pause = useTimer((s) => s.pause);
+  const resume = useTimer((s) => s.resume);
+  const setPhasePreview = useTimer((s) => s.setPhasePreview);
   const cycleCount = useTimer((s) => s.cycleCount);
 
   const [selectedPhase, setSelectedPhase] =
@@ -57,6 +60,13 @@ export default function Timer() {
     };
   }, []);
 
+  // Ensure default selected phase reflects on timer when idle/paused
+  useEffect(() => {
+    if (!isRunning) {
+      setPhasePreview(selectedPhase);
+    }
+  }, [selectedPhase, isRunning, setPhasePreview]);
+
   const mm = Math.floor(remainingMs / 60000)
     .toString()
     .padStart(2, "0");
@@ -86,6 +96,7 @@ export default function Timer() {
           <Button
             variant={"outline"}
             className="rounded-full"
+            disabled={isRunning}
             onClick={() => setSelectedPhase("WORK")}
           >
             Focus
@@ -93,6 +104,7 @@ export default function Timer() {
           <Button
             variant={"outline"}
             className="rounded-full"
+            disabled={isRunning}
             onClick={() => setSelectedPhase("BREAK_SHORT")}
           >
             Short Break
@@ -100,6 +112,7 @@ export default function Timer() {
           <Button
             variant={"outline"}
             className="rounded-full"
+            disabled={isRunning}
             onClick={() => setSelectedPhase("BREAK_LONG")}
           >
             Long Break
@@ -114,10 +127,22 @@ export default function Timer() {
             <Button
               className="text-lg h-12 w-30"
               onClick={() => {
-                if (!isRunning) start(selectedPhase);
+                if (isRunning) {
+                  pause();
+                } else {
+                  if (remainingMs > 0 && phase !== "IDLE") {
+                    resume();
+                  } else {
+                    start(selectedPhase);
+                  }
+                }
               }}
             >
-              Start
+              {isRunning
+                ? "Pause"
+                : remainingMs > 0 && phase !== "IDLE"
+                ? "Resume"
+                : "Start"}
             </Button>
           </div>
         </div>

@@ -33,6 +33,7 @@ export interface TimerState {
   resume: () => void;
   reset: () => void;
   tick: (now?: number) => void;
+  setPhasePreview: (phase: Exclude<Phase, "IDLE">) => void;
 
   // settings
   setDurations: (d: Partial<Durations>) => void;
@@ -168,6 +169,11 @@ export const useTimer = create<TimerState>((set, get) => ({
       // still running: update remainingMs
       set({ remainingMs: diff });
     }
+  },
+
+  setPhasePreview: (phase) => {
+    const dur = get().durations[phase];
+    set({ phase, isRunning: false, remainingMs: dur, targetEndAt: undefined });
   },
 
   setDurations: (d) => set((s) => ({ durations: { ...s.durations, ...d } })),
