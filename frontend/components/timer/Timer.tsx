@@ -107,6 +107,19 @@ export default function Timer() {
 
   // Top buttons select phase only; center button starts
 
+  const getPhaseButtonClass = (type: Exclude<Phase, "IDLE">) => {
+    const isSelected = isRunning ? phase === type : selectedPhase === type;
+    if (!isSelected) return "";
+    switch (type) {
+      case "WORK":
+        return "bg-red-100 border border-neutral-300";
+      case "BREAK_SHORT":
+        return "bg-emerald-100 border border-emerald-200";
+      case "BREAK_LONG":
+        return "bg-sky-100 border border-sky-200";
+    }
+  };
+
   return (
     <main>
       <div
@@ -115,7 +128,7 @@ export default function Timer() {
         <div className="flex gap-4">
           <Button
             variant={"outline"}
-            className={`rounded-full ${bgClass}`}
+            className={`rounded-full ${getPhaseButtonClass("WORK")}`}
             disabled={isRunning}
             onClick={() => {
               setSelectedPhase("WORK");
@@ -126,7 +139,7 @@ export default function Timer() {
           </Button>
           <Button
             variant={"outline"}
-            className="rounded-full"
+            className={`rounded-full ${getPhaseButtonClass("BREAK_SHORT")}`}
             disabled={isRunning}
             onClick={() => {
               setSelectedPhase("BREAK_SHORT");
@@ -137,7 +150,7 @@ export default function Timer() {
           </Button>
           <Button
             variant={"outline"}
-            className="rounded-full"
+            className={`rounded-full ${getPhaseButtonClass("BREAK_LONG")}`}
             disabled={isRunning}
             onClick={() => {
               setSelectedPhase("BREAK_LONG");
@@ -148,7 +161,7 @@ export default function Timer() {
           </Button>
         </div>
         <div className="flex flex-col justify-center items-center grid-col gap-20 shadow-2xl bg-neutral-100 w-[65vh] h-[45vh] rounded-4xl">
-          <div>{textClass}</div>
+          <div></div>
           <div className="font-bold text-9xl">
             {mm}:{ss}
           </div>
