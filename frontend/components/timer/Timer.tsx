@@ -32,7 +32,7 @@ export default function Timer() {
     let intervalId: number | null = null;
     if (typeof window != "undefined" && "Worker" in window) {
       try {
-        worker = new Worker("/worker/timer.worker.js");
+        worker = new Worker("/workers/timer.worker.js");
         worker.postMessage({ cmd: "start", ms: 250 });
         worker.onmessage = (e) => {
           if (e.data?.type === "tick") {
@@ -79,6 +79,31 @@ export default function Timer() {
     ? Math.min(100, Math.max(0, ((totalMs - remainingMs) / totalMs) * 100))
     : 0;
 
+  const onCenterClick = () => {
+    if (phase === "IDLE") {
+      start("WORK");
+      return;
+    }
+    if (isRunning) {
+      pause();
+      return;
+    }
+    if (!isRunning && remainingMs > 0) {
+      resume();
+      return;
+    }
+    start("WORK");
+  };
+
+  const centerLabel =
+    phase === "IDLE"
+      ? "Start"
+      : isRunning
+      ? "Pause"
+      : remainingMs > 0
+      ? "Resume"
+      : "Start";
+
   return (
     <main>
       <div className="flex-col flex  h-screen items-center justify-center gap-10  ">
@@ -111,7 +136,14 @@ export default function Timer() {
             {mm}:{ss}
           </div>
           <div>
-            <Button className="text-lg h-12 w-30">Start</Button>
+            <Button className="text-lg h-12 w-30" onClick={onCenterClick}>
+              {centerLabel}
+            </Button>
+          </div>
+          <div>
+            <Button variant={"outline"} className="h-10" onClick={reset}>
+              Reset
+            </Button>
           </div>
         </div>
         <div className="flex gap-2">
