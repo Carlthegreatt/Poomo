@@ -35,6 +35,13 @@ export default function Timer() {
       ? "bg-rose-50"
       : "bg-white";
 
+  const textClass =
+    phase === "BREAK_SHORT"
+      ? "Short Break"
+      : phase === "BREAK_LONG"
+      ? "Long Break"
+      : phase === "WORK";
+
   const [selectedPhase, setSelectedPhase] =
     useState<Exclude<Phase, "IDLE">>("WORK");
 
@@ -102,7 +109,9 @@ export default function Timer() {
 
   return (
     <main>
-      <div className="flex-col flex  h-screen items-center justify-center gap-10 ${bgClass}`} ">
+      <div
+        className={`flex-col flex  h-screen items-center justify-center gap-10 ${bgClass}`}
+      >
         <div className="flex gap-4">
           <Button
             variant={"outline"}
@@ -139,7 +148,7 @@ export default function Timer() {
           </Button>
         </div>
         <div className="flex flex-col justify-center items-center grid-col gap-20 shadow-2xl bg-neutral-100 w-[65vh] h-[45vh] rounded-4xl">
-          <div></div>
+          <div>textClass</div>
           <div className="font-bold text-9xl">
             {mm}:{ss}
           </div>
