@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "../ui/button";
-import { Upload } from "lucide-react";
+
 import React, { useEffect, useState } from "react";
 import { useTimer, Phase } from "./useTimer";
 
@@ -103,7 +103,7 @@ export default function Timer() {
   return (
     <main>
       <div
-        className={`flex-col flex  h-screen items-center justify-center gap-10`}
+        className={`flex-col flex h-[60vh] items-center justify-center gap-10`}
       >
         <div className="flex gap-4">
           <Button

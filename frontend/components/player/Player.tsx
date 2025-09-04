@@ -1,6 +1,18 @@
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Upload } from "lucide-react";
+import { Button } from "../ui/button";
+
 export default function Player() {
   return (
-    <div className="flex gap-2">
+    <div className="flex gap-2 mt-5 items-center justify-center">
       <Select>
         <SelectTrigger className="w-[240px]">
           <SelectValue placeholder="Select background music" />
