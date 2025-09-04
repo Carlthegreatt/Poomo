@@ -7,8 +7,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Upload } from "lucide-react";
+
 import { Button } from "../ui/button";
+import Upload from "./upload";
 
 export default function Player() {
   return (
