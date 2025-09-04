@@ -1,5 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
+import { Button } from "../ui/button";
 
 export default function Upload() {
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -46,13 +47,13 @@ export default function Upload() {
         className="hidden"
         onChange={handleFileChange}
       />
-      <button
+      <Button
         onClick={handleButtonClick}
         disabled={uploading}
         className="px-3 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-60"
       >
         {uploading ? "Uploading..." : "Upload file"}
-      </button>
+      </Button>
     </div>
   );
 }
