@@ -1,43 +1,57 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 export default function Upload() {
-  const [file, setFile] = useState<File | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [uploading, setUploading] = useState(false);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setFile(e.target.files[0]);
-    }
+  const handleButtonClick = () => {
+    inputRef.current?.click();
   };
 
-  const handleUpload = async () => {
-    if (!file) return alert("No file selected");
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (!selectedFile) return;
 
-    const formData = new FormData();
-    formData.append("file", file);
+    try {
+      setUploading(true);
+      const formData = new FormData();
+      formData.append("file", selectedFile);
 
-    const res = await fetch("/api/upload", {
-      method: "POST",
-      body: formData,
-    });
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
 
-    if (res.ok) {
-      alert("File uploaded successfully!");
-      setFile(null);
-    } else {
+      if (res.ok) {
+        alert("File uploaded successfully!");
+      } else {
+        alert("Upload failed.");
+      }
+    } catch (err) {
       alert("Upload failed.");
+    } finally {
+      setUploading(false);
+      if (inputRef.current) {
+        inputRef.current.value = "";
+      }
     }
   };
 
   return (
     <div>
-      <input type="file" onChange={handleFileChange} />
-      {file && <p className="text-sm">Selected: {file.name}</p>}
+      <input
+        ref={inputRef}
+        type="file"
+        className="hidden"
+        onChange={handleFileChange}
+      />
       <button
-        onClick={handleUpload}
-        className="px-3 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+        onClick={handleButtonClick}
+        disabled={uploading}
+        className="px-3 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-60"
       >
-        Upload
+        {uploading ? "Uploading..." : "Upload file"}
       </button>
     </div>
   );
