@@ -126,7 +126,7 @@ export default function Timer() {
           </Button>
           <Button
             variant={"outline"}
-            className="rounded-full active:bg-amber-600"
+            className="rounded-full"
             disabled={isRunning}
             onClick={() => {
               setSelectedPhase("BREAK_SHORT");
