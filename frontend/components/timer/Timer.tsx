@@ -32,7 +32,7 @@ export default function Timer() {
       : phase === "BREAK_LONG"
       ? "bg-sky-50"
       : phase === "WORK"
-      ? "bg-rose-50"
+      ? "bg-white"
       : "bg-white";
 
   const textClass =
@@ -148,7 +148,7 @@ export default function Timer() {
           </Button>
         </div>
         <div className="flex flex-col justify-center items-center grid-col gap-20 shadow-2xl bg-neutral-100 w-[65vh] h-[45vh] rounded-4xl">
-          <div>textClass</div>
+          <div>{textClass}</div>
           <div className="font-bold text-9xl">
             {mm}:{ss}
           </div>
