@@ -25,6 +25,16 @@ export default function Timer() {
   const setPhasePreview = useTimer((s) => s.setPhasePreview);
   // const cycleCount = useTimer((s) => s.cycleCount);
 
+  // inside Timer component, under other consts
+  const bgClass =
+    phase === "BREAK_SHORT"
+      ? "bg-emerald-50"
+      : phase === "BREAK_LONG"
+      ? "bg-sky-50"
+      : phase === "WORK"
+      ? "bg-rose-50"
+      : "bg-white";
+
   const [selectedPhase, setSelectedPhase] =
     useState<Exclude<Phase, "IDLE">>("WORK");
 
@@ -92,7 +102,7 @@ export default function Timer() {
 
   return (
     <main>
-      <div className="flex-col flex  h-screen items-center justify-center gap-10  ">
+      <div className="flex-col flex  h-screen items-center justify-center gap-10 ${bgClass}`} ">
         <div className="flex gap-4">
           <Button
             variant={"outline"}
