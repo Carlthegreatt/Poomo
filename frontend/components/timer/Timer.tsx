@@ -2,7 +2,7 @@
 
 import { Button } from "../ui/button";
 import { Upload } from "lucide-react";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useTimer, onTimerFinished, Phase } from "./useTimer";
 import {
   Select,
@@ -19,13 +19,11 @@ export default function Timer() {
   const isRunning = useTimer((s) => s.isRunning);
   const remainingMs = useTimer((s) => s.remainingMs);
   const durations = useTimer((s) => s.durations);
-  const cycleCount = useTimer((s) => s.cycleCount);
   const start = useTimer((s) => s.start);
-  const pause = useTimer((s) => s.pause);
-  const resume = useTimer((s) => s.resume);
-  const reset = useTimer((s) => s.reset);
-  const setAutoAdvance = useTimer((s) => s.setAutoAdvance);
-  const autoAdvance = useTimer((s) => s.autoAdvance);
+  const cycleCount = useTimer((s) => s.cycleCount);
+
+  const [selectedPhase, setSelectedPhase] =
+    useState<Exclude<Phase, "IDLE">>("WORK");
 
   useEffect(() => {
     let worker: Worker | null = null;
@@ -79,30 +77,7 @@ export default function Timer() {
     ? Math.min(100, Math.max(0, ((totalMs - remainingMs) / totalMs) * 100))
     : 0;
 
-  const onCenterClick = () => {
-    if (phase === "IDLE") {
-      start("WORK");
-      return;
-    }
-    if (isRunning) {
-      pause();
-      return;
-    }
-    if (!isRunning && remainingMs > 0) {
-      resume();
-      return;
-    }
-    start("WORK");
-  };
-
-  const centerLabel =
-    phase === "IDLE"
-      ? "Start"
-      : isRunning
-      ? "Pause"
-      : remainingMs > 0
-      ? "Resume"
-      : "Start";
+  // Top buttons select phase only; center button starts
 
   return (
     <main>
@@ -111,21 +86,21 @@ export default function Timer() {
           <Button
             variant={"outline"}
             className="rounded-full"
-            onClick={() => start("WORK")}
+            onClick={() => setSelectedPhase("WORK")}
           >
             Focus
           </Button>
           <Button
             variant={"outline"}
             className="rounded-full"
-            onClick={() => start("BREAK_SHORT")}
+            onClick={() => setSelectedPhase("BREAK_SHORT")}
           >
             Short Break
           </Button>
           <Button
             variant={"outline"}
             className="rounded-full"
-            onClick={() => start("BREAK_LONG")}
+            onClick={() => setSelectedPhase("BREAK_LONG")}
           >
             Long Break
           </Button>
@@ -136,13 +111,13 @@ export default function Timer() {
             {mm}:{ss}
           </div>
           <div>
-            <Button className="text-lg h-12 w-30" onClick={onCenterClick}>
-              {centerLabel}
-            </Button>
-          </div>
-          <div>
-            <Button variant={"outline"} className="h-10" onClick={reset}>
-              Reset
+            <Button
+              className="text-lg h-12 w-30"
+              onClick={() => {
+                if (!isRunning) start(selectedPhase);
+              }}
+            >
+              Start
             </Button>
           </div>
         </div>
