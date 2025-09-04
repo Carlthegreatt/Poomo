@@ -3,7 +3,7 @@
 import { Button } from "../ui/button";
 import { Upload } from "lucide-react";
 import React, { useEffect, useState } from "react";
-import { useTimer, onTimerFinished, Phase } from "./useTimer";
+import { useTimer, Phase } from "./useTimer";
 import {
   Select,
   SelectContent,
@@ -18,12 +18,12 @@ export default function Timer() {
   const phase = useTimer((s) => s.phase);
   const isRunning = useTimer((s) => s.isRunning);
   const remainingMs = useTimer((s) => s.remainingMs);
-  const durations = useTimer((s) => s.durations);
+  // const durations = useTimer((s) => s.durations);
   const start = useTimer((s) => s.start);
   const pause = useTimer((s) => s.pause);
   const resume = useTimer((s) => s.resume);
   const setPhasePreview = useTimer((s) => s.setPhasePreview);
-  const cycleCount = useTimer((s) => s.cycleCount);
+  // const cycleCount = useTimer((s) => s.cycleCount);
 
   const [selectedPhase, setSelectedPhase] =
     useState<Exclude<Phase, "IDLE">>("WORK");
@@ -40,7 +40,7 @@ export default function Timer() {
             useTimer.getState().tick(e.data.now);
           }
         };
-      } catch (err) {
+      } catch {
         worker = null;
       }
     }
@@ -60,12 +60,13 @@ export default function Timer() {
     };
   }, []);
 
-  // Ensure default selected phase reflects on timer when idle/paused
+  // Set initial display to default phase on mount if idle
   useEffect(() => {
-    if (!isRunning) {
-      setPhasePreview(selectedPhase);
+    if (phase === "IDLE" && remainingMs === 0) {
+      setPhasePreview("WORK");
     }
-  }, [selectedPhase, isRunning, setPhasePreview]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const mm = Math.floor(remainingMs / 60000)
     .toString()
@@ -74,18 +75,18 @@ export default function Timer() {
     .toString()
     .padStart(2, "0");
 
-  const totalMs =
-    phase === "WORK"
-      ? durations.WORK
-      : phase == "BREAK_SHORT"
-      ? durations.BREAK_SHORT
-      : phase === "BREAK_LONG"
-      ? durations.BREAK_LONG
-      : 0;
+  // const totalMs =
+  //   phase === "WORK"
+  //     ? durations.WORK
+  //     : phase == "BREAK_SHORT"
+  //     ? durations.BREAK_SHORT
+  //     : phase === "BREAK_LONG"
+  //     ? durations.BREAK_LONG
+  //     : 0;
 
-  const progress = totalMs
-    ? Math.min(100, Math.max(0, ((totalMs - remainingMs) / totalMs) * 100))
-    : 0;
+  // const progress = totalMs
+  //   ? Math.min(100, Math.max(0, ((totalMs - remainingMs) / totalMs) * 100))
+  //   : 0;
 
   // Top buttons select phase only; center button starts
 
@@ -97,7 +98,10 @@ export default function Timer() {
             variant={"outline"}
             className="rounded-full"
             disabled={isRunning}
-            onClick={() => setSelectedPhase("WORK")}
+            onClick={() => {
+              setSelectedPhase("WORK");
+              if (!isRunning) setPhasePreview("WORK");
+            }}
           >
             Focus
           </Button>
@@ -105,7 +109,10 @@ export default function Timer() {
             variant={"outline"}
             className="rounded-full"
             disabled={isRunning}
-            onClick={() => setSelectedPhase("BREAK_SHORT")}
+            onClick={() => {
+              setSelectedPhase("BREAK_SHORT");
+              if (!isRunning) setPhasePreview("BREAK_SHORT");
+            }}
           >
             Short Break
           </Button>
@@ -113,7 +120,10 @@ export default function Timer() {
             variant={"outline"}
             className="rounded-full"
             disabled={isRunning}
-            onClick={() => setSelectedPhase("BREAK_LONG")}
+            onClick={() => {
+              setSelectedPhase("BREAK_LONG");
+              if (!isRunning) setPhasePreview("BREAK_LONG");
+            }}
           >
             Long Break
           </Button>

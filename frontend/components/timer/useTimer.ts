@@ -48,7 +48,7 @@ export const useTimer = create<TimerState>((set, get) => ({
   targetEndAt: undefined,
   cycleCount: 0,
   durations: {
-    WORK: 25 * 60_000,
+    WORK: 1 * 6000,
     BREAK_SHORT: 5 * 60_000,
     BREAK_LONG: 15 * 60_000,
   },
@@ -97,7 +97,7 @@ export const useTimer = create<TimerState>((set, get) => ({
       finishListeners.forEach((fn) => {
         try {
           fn(finishedPhase);
-        } catch (e) {
+        } catch {
           /* ignore */
         }
       });
