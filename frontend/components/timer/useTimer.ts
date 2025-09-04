@@ -109,23 +109,23 @@ export const useTimer = create<TimerState>((set, get) => ({
           const newCycle = s.cycleCount + 1;
           if (s.autoAdvance) {
             if (newCycle >= s.longBreakEvery) {
-              // start long break and reset cycle count
+              // advance to long break (paused) and reset cycle count
               const dur = s.durations.BREAK_LONG;
               return {
                 phase: "BREAK_LONG",
-                isRunning: true,
+                isRunning: false,
                 remainingMs: dur,
-                targetEndAt: now + dur,
+                targetEndAt: undefined,
                 cycleCount: 0,
               };
             } else {
-              // short break
+              // advance to short break (paused)
               const dur = s.durations.BREAK_SHORT;
               return {
                 phase: "BREAK_SHORT",
-                isRunning: true,
+                isRunning: false,
                 remainingMs: dur,
-                targetEndAt: now + dur,
+                targetEndAt: undefined,
                 cycleCount: newCycle,
               };
             }
@@ -144,9 +144,9 @@ export const useTimer = create<TimerState>((set, get) => ({
             const dur = s.durations.WORK;
             return {
               phase: "WORK",
-              isRunning: true,
+              isRunning: false,
               remainingMs: dur,
-              targetEndAt: now + dur,
+              targetEndAt: undefined,
             };
           } else {
             return {

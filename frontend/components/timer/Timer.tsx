@@ -74,6 +74,13 @@ export default function Timer() {
     };
   }, []);
 
+  // Keep selected button in sync with current phase when phase changes (e.g., auto-advance or preview)
+  useEffect(() => {
+    if (phase !== "IDLE") {
+      setSelectedPhase(phase as Exclude<Phase, "IDLE">);
+    }
+  }, [phase]);
+
   // Set initial display to default phase on mount if idle
   useEffect(() => {
     if (phase === "IDLE" && remainingMs === 0) {
