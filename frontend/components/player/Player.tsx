@@ -8,7 +8,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-import { Button } from "../ui/button";
 import Upload from "./upload";
 
 export default function Player() {
@@ -28,9 +27,7 @@ export default function Player() {
           </SelectGroup>
         </SelectContent>
       </Select>
-      <Button>
-        <Upload></Upload>
-      </Button>
+      <Upload />
     </div>
   );
 }
