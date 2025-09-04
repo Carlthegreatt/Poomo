@@ -142,12 +142,12 @@ export default function Timer() {
         </div>
         <div className="flex flex-col justify-center items-center grid-col gap-20 shadow-2xl bg-neutral-100 w-[65vh] h-[45vh] rounded-4xl">
           <div></div>
-          <div className="font-bold text-9xl">
+          <div className="font-bold text-9xl text-neutral-800">
             {mm}:{ss}
           </div>
           <div>
             <Button
-              className="text-lg h-12 w-30"
+              className="text-lg h-12 w-30 bg-neutral-800"
               onClick={() => {
                 if (isRunning) {
                   pause();
