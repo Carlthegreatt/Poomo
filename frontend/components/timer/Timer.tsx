@@ -4,15 +4,6 @@ import { Button } from "../ui/button";
 import { Upload } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useTimer, Phase } from "./useTimer";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 export default function Timer() {
   const phase = useTimer((s) => s.phase);
@@ -176,25 +167,6 @@ export default function Timer() {
                 : "Start"}
             </Button>
           </div>
-        </div>
-        <div className="flex gap-2">
-          <Select>
-            <SelectTrigger className="w-[240px]">
-              <SelectValue placeholder="Select background music" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectLabel>Your music</SelectLabel>
-                <SelectItem value="White Noise">White Noise</SelectItem>
-                <SelectItem value="Brown Noise">Brown Noise</SelectItem>
-                <SelectItem value="Lo Fi">Lo Fi</SelectItem>
-                <SelectItem value="grapes">Mozart</SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-          <Button>
-            <Upload></Upload>
-          </Button>
         </div>
       </div>
     </main>
