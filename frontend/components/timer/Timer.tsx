@@ -157,11 +157,10 @@ export default function Timer() {
               onClick={() => {
                 if (isRunning) {
                   pause();
-                  toast.success("started");
                 } else {
                   if (remainingMs > 0 && phase !== "IDLE") {
                     resume();
-                    toast.success("started");
+                    toast("Time to focus!");
                   } else {
                     start(selectedPhase);
                   }
@@ -173,7 +172,6 @@ export default function Timer() {
                 : remainingMs > 0 && phase !== "IDLE"
                 ? "Start"
                 : "Start"}
-              {resume ? "Resume" : phase !== "IDLE"}
             </Button>
           </div>
         </div>
