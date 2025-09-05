@@ -17,6 +17,21 @@ export default function Player() {
   const isRunning = useTimer((s) => s.isRunning);
   const [files, setFiles] = useState<string[]>([]);
 
+  const[(audio, setAudio)] = useState<HTMLAudioElement | null>(null);
+
+  const handlePlay = (value: string) => {
+    // Stop currently playing audio if any
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
+    }
+
+    // Create new audio
+    const newAudio = new Audio(`/sounds/${value}.mp3`);
+    newAudio.play();
+    setAudio(newAudio);
+  };
+
   useEffect(() => {
     const fetchFiles = async () => {
       const res = await fetch("/api/files");
