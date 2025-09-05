@@ -1,14 +1,14 @@
 "use client";
 import { useState } from "react";
 import { Button } from "../ui/button";
-import { Upload } from "lucide-react";
+import { Upload as UploadIcon } from "lucide-react";
 import { useTimer, Phase } from "../timer/useTimer";
 
 interface UploadProps {
   onUploadSuccess?: () => void;
 }
 
-export default function uploadFile({ onUploadSuccess }: UploadProps = {}) {
+export default function Upload({ onUploadSuccess }: UploadProps = {}) {
   const [uploading, setUploading] = useState(false);
   const isRunning = useTimer((s) => s.isRunning);
 
@@ -91,7 +91,7 @@ export default function uploadFile({ onUploadSuccess }: UploadProps = {}) {
         {uploading ? (
           "Uploading..."
         ) : (
-          <Upload className="w-3 h-3 sm:w-4 sm:h-4 lg:w-5 lg:h-5"></Upload>
+          <UploadIcon className="w-3 h-3 sm:w-4 sm:h-4 lg:w-5 lg:h-5"></UploadIcon>
         )}
       </Button>
     </div>
