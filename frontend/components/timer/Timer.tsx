@@ -147,7 +147,7 @@ export default function Timer() {
         </div>
         <div className="flex flex-col justify-center items-center shadow-2xl bg-neutral-100 w-full max-w-sm sm:max-w-md lg:max-w-lg xl:max-w-xl aspect-[4/3] rounded-2xl sm:rounded-3xl lg:rounded-4xl p-4 sm:p-6 lg:p-8">
           <div className="flex-1 flex items-center justify-center">
-            <div className="font-bold text-7xl sm:text-7xl lg:text-9xl xl:text-9xl 2xl:text-9xl text-neutral-800 text-center text-responsive">
+            <div className="font-bold text-7xl sm:text-7xl lg:text-7xl xl:text-7xl 2xl:text-9xl text-neutral-800 text-center text-responsive">
               {mm}:{ss}
             </div>
           </div>

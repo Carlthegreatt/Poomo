@@ -2,6 +2,7 @@ import { Button } from "../ui/button";
 import { LogIn } from "lucide-react";
 import { Settings } from "lucide-react";
 import { ChartBar } from "lucide-react";
+import { CircleUser } from "lucide-react";
 
 export default function Header() {
   return (
@@ -16,7 +17,7 @@ export default function Header() {
             <Settings></Settings>
           </button>
           <button>
-            <LogIn></LogIn>
+            <CircleUser></CircleUser>
           </button>
         </div>
       </div>
