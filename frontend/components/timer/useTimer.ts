@@ -60,7 +60,6 @@ export const useTimer = create<TimerState>((set, get) => ({
     const ms = minutes ? Math.max(0, minutes * 60_000) : get().durations[phase];
     const target = Date.now() + ms;
     set({ phase, isRunning: true, remainingMs: ms, targetEndAt: target });
-    toast("dfdas");
   },
 
   pause: () => {
@@ -109,6 +108,7 @@ export const useTimer = create<TimerState>((set, get) => ({
         // If we just finished a WORK session, increment cycleCount
         if (s.phase === "WORK") {
           const newCycle = s.cycleCount + 1;
+          toast("Great Job! Time to rest..");
           if (s.autoAdvance) {
             if (newCycle >= s.longBreakEvery) {
               // advance to long break (paused) and reset cycle count
