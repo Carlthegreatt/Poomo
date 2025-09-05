@@ -27,19 +27,23 @@ export default function Player() {
   }, []);
 
   return (
-    <div className="flex gap-2 mt-5 items-center justify-center">
+    <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 lg:gap-4 items-center justify-center w-full max-w-md sm:max-w-lg lg:max-w-xl">
       <Select
         disabled={isRunning}
         onValueChange={(value) => console.log("Selected file", value)}
       >
-        <SelectTrigger className="w-[240px]">
+        <SelectTrigger className="w-full sm:w-48 lg:w-56 xl:w-64 text-xs sm:text-sm">
           <SelectValue placeholder="Select background music" />
         </SelectTrigger>
         <SelectContent>
           <SelectGroup>
             <SelectLabel>Your music</SelectLabel>
             {files.map((file) => (
-              <SelectItem key={file} value={file}>
+              <SelectItem
+                key={file}
+                value={file}
+                className="text-xs sm:text-sm"
+              >
                 {file}
               </SelectItem>
             ))}

@@ -4,6 +4,7 @@ import { Button } from "../ui/button";
 
 import React, { useEffect, useState } from "react";
 import { useTimer, Phase } from "./useTimer";
+import { toast, Toaster } from "sonner";
 
 export default function Timer() {
   const phase = useTimer((s) => s.phase);
@@ -101,14 +102,14 @@ export default function Timer() {
   };
 
   return (
-    <main>
-      <div
-        className={`flex-col flex h-[60vh] items-center justify-center gap-10`}
-      >
-        <div className="flex gap-4">
+    <main className="w-full">
+      <div className="flex flex-col items-center justify-center gap-4 sm:gap-6 lg:gap-8 xl:gap-10 landscape-compact">
+        <div className="flex flex-wrap gap-2 sm:gap-3 lg:gap-4 justify-center">
           <Button
             variant={"outline"}
-            className={`rounded-full ${getPhaseButtonClass("WORK")}`}
+            className={`cursor-pointer rounded-full text-xs sm:text-sm lg:text-base px-3 sm:px-4 lg:px-6 py-2 ${getPhaseButtonClass(
+              "WORK"
+            )}`}
             disabled={isRunning}
             onClick={() => {
               setSelectedPhase("WORK");
@@ -119,7 +120,9 @@ export default function Timer() {
           </Button>
           <Button
             variant={"outline"}
-            className={`rounded-full ${getPhaseButtonClass("BREAK_SHORT")}`}
+            className={`cursor-pointer rounded-full text-xs sm:text-sm lg:text-base px-3 sm:px-4 lg:px-6 py-2 ${getPhaseButtonClass(
+              "BREAK_SHORT"
+            )}`}
             disabled={isRunning}
             onClick={() => {
               setSelectedPhase("BREAK_SHORT");
@@ -130,7 +133,9 @@ export default function Timer() {
           </Button>
           <Button
             variant={"outline"}
-            className={`rounded-full ${getPhaseButtonClass("BREAK_LONG")}`}
+            className={`cursor-pointer rounded-full text-xs sm:text-sm lg:text-base px-3 sm:px-4 lg:px-6 py-2 ${getPhaseButtonClass(
+              "BREAK_LONG"
+            )}`}
             disabled={isRunning}
             onClick={() => {
               setSelectedPhase("BREAK_LONG");
@@ -140,20 +145,23 @@ export default function Timer() {
             Long Break
           </Button>
         </div>
-        <div className="flex flex-col justify-center items-center grid-col gap-20 shadow-2xl bg-neutral-100 w-[65vh] h-[45vh] rounded-4xl">
-          <div></div>
-          <div className="font-bold text-9xl text-neutral-800">
-            {mm}:{ss}
+        <div className="flex flex-col justify-center items-center shadow-2xl bg-neutral-100 w-full max-w-sm sm:max-w-md lg:max-w-lg xl:max-w-xl aspect-[4/3] rounded-2xl sm:rounded-3xl lg:rounded-4xl p-4 sm:p-6 lg:p-8">
+          <div className="flex-1 flex items-center justify-center">
+            <div className="font-bold text-7xl sm:text-7xl lg:text-9xl xl:text-9xl 2xl:text-9xl text-neutral-800 text-center text-responsive">
+              {mm}:{ss}
+            </div>
           </div>
-          <div>
+          <div className="flex items-center justify-center pb-4 sm:pb-6 lg:pb-8">
             <Button
-              className="text-lg h-12 w-30 bg-neutral-800"
+              className="cursor-pointer text-sm sm:text-base lg:text-lg xl:text-xl h-10 sm:h-12 lg:h-14 px-6 sm:px-8 lg:px-10 bg-neutral-800 hover:bg-neutral-700"
               onClick={() => {
                 if (isRunning) {
                   pause();
+                  toast.success("started");
                 } else {
                   if (remainingMs > 0 && phase !== "IDLE") {
                     resume();
+                    toast.success("started");
                   } else {
                     start(selectedPhase);
                   }
@@ -163,8 +171,9 @@ export default function Timer() {
               {isRunning
                 ? "Pause"
                 : remainingMs > 0 && phase !== "IDLE"
-                ? "Resume"
+                ? "Start"
                 : "Start"}
+              {resume ? "Resume" : phase !== "IDLE"}
             </Button>
           </div>
         </div>

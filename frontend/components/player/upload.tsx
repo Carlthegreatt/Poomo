@@ -79,9 +79,13 @@ export default function uploadFile() {
       <Button
         onClick={handleButtonClick}
         disabled={isRunning}
-        className="px-3 py-1 rounded-lg disabled:opacity-60"
+        className="cursor-pointer px-3 sm:px-4 lg:px-5 py-2 sm:py-2.5 lg:py-3 rounded-lg disabled:opacity-60 text-xs sm:text-sm lg:text-base h-8 sm:h-9 lg:h-10"
       >
-        {uploading ? "Uploading..." : <Upload></Upload>}
+        {uploading ? (
+          "Uploading..."
+        ) : (
+          <Upload className="w-3 h-3 sm:w-4 sm:h-4 lg:w-5 lg:h-5"></Upload>
+        )}
       </Button>
     </div>
   );
