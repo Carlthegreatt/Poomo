@@ -108,11 +108,11 @@ export const useTimer = create<TimerState>((set, get) => ({
         // If we just finished a WORK session, increment cycleCount
         if (s.phase === "WORK") {
           const newCycle = s.cycleCount + 1;
-          toast("Great Job! Time to rest..");
           if (s.autoAdvance) {
             if (newCycle >= s.longBreakEvery) {
               // advance to long break (paused) and reset cycle count
               const dur = s.durations.BREAK_LONG;
+              toast("Time for a looong break..");
               return {
                 phase: "BREAK_LONG",
                 isRunning: false,
@@ -123,6 +123,7 @@ export const useTimer = create<TimerState>((set, get) => ({
             } else {
               // advance to short break (paused)
               const dur = s.durations.BREAK_SHORT;
+              toast("Great Job! Time to rest..");
               return {
                 phase: "BREAK_SHORT",
                 isRunning: false,
