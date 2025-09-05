@@ -9,10 +9,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useEffect, useState } from "react";
+import { useTimer, Phase } from "../timer/useTimer";
 
 import Upload from "./upload";
 
 export default function Player() {
+  const isRunning = useTimer((s) => s.isRunning);
   const [files, setFiles] = useState<string[]>([]);
 
   useEffect(() => {
@@ -26,7 +28,10 @@ export default function Player() {
 
   return (
     <div className="flex gap-2 mt-5 items-center justify-center">
-      <Select onValueChange={(value) => console.log("Selected file", value)}>
+      <Select
+        disabled={isRunning}
+        onValueChange={(value) => console.log("Selected file", value)}
+      >
         <SelectTrigger className="w-[240px]">
           <SelectValue placeholder="Select background music" />
         </SelectTrigger>

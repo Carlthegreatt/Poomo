@@ -6,7 +6,6 @@ import { useTimer, Phase } from "../timer/useTimer";
 
 export default function uploadFile() {
   const [uploading, setUploading] = useState(false);
-  const phase = useTimer((s) => s.phase);
   const isRunning = useTimer((s) => s.isRunning);
 
   const pickFile = async (): Promise<File | null> => {
@@ -79,7 +78,7 @@ export default function uploadFile() {
     <div>
       <Button
         onClick={handleButtonClick}
-        disabled={uploading}
+        disabled={isRunning}
         className="px-3 py-1 rounded-lg disabled:opacity-60"
       >
         {uploading ? "Uploading..." : <Upload></Upload>}
