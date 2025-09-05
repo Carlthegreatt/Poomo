@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useTimer } from "../timer/useTimer";
 import { Button } from "../ui/button";
 import { Play, Pause } from "lucide-react";
@@ -26,6 +26,7 @@ export default function Player({ onFileUploaded }: PlayerProps = {}) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentFile, setCurrentFile] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Simple play/pause control
   const togglePlayPause = useCallback(() => {
@@ -40,60 +41,119 @@ export default function Player({ onFileUploaded }: PlayerProps = {}) {
     }
   }, [audio, currentFile]);
 
-  const handlePlay = (value: string) => {
-    // Stop currently playing audio if any
-    if (audio) {
-      audio.pause();
-      audio.currentTime = 0;
-      setIsPlaying(false);
-    }
+  const handlePlay = useCallback(
+    (value: string) => {
+      // If we already have an audio element and it's the same file, just play/pause
+      if (audio && currentFile === value) {
+        if (audio.paused) {
+          audio.play().catch((error) => {
+            console.error("Error playing audio:", error);
+          });
+        } else {
+          audio.pause();
+        }
+        return;
+      }
 
-    // Create new audio
-    const newAudio = new Audio(`/api/files/${encodeURIComponent(value)}`);
+      // Stop currently playing audio if any
+      if (audio) {
+        audio.pause();
+        audio.currentTime = 0;
+        setIsPlaying(false);
+      }
 
-    // Add event listeners
-    newAudio.addEventListener("loadstart", () => {
-      setIsLoading(true);
-    });
+      // Create new audio element only if we don't have one or it's a different file
+      const newAudio = audio || new Audio();
 
-    newAudio.addEventListener("canplay", () => {
-      setIsLoading(false);
-    });
+      // Set the source
+      newAudio.src = `/api/files/${encodeURIComponent(value)}`;
 
-    newAudio.addEventListener("play", () => {
-      setIsPlaying(true);
-      setCurrentFile(value);
-    });
+      // Set audio properties
+      newAudio.preload = "metadata";
+      newAudio.volume = 0.7;
 
-    newAudio.addEventListener("pause", () => {
-      setIsPlaying(false);
-    });
+      // Add event listeners (only if this is a new audio element)
+      if (!audio) {
+        newAudio.addEventListener("loadstart", () => {
+          setIsLoading(true);
+        });
 
-    newAudio.addEventListener("ended", () => {
-      setIsPlaying(false);
-      setCurrentFile(null);
-    });
+        newAudio.addEventListener("canplay", () => {
+          setIsLoading(false);
+        });
 
-    newAudio.addEventListener("error", () => {
-      console.error("Audio error:", newAudio.error);
-      setIsPlaying(false);
-      setCurrentFile(null);
-      setIsLoading(false);
-    });
+        newAudio.addEventListener("play", () => {
+          setIsPlaying(true);
+          setCurrentFile(value);
+        });
 
-    // Set audio properties
-    newAudio.preload = "metadata";
-    newAudio.volume = 0.7;
+        newAudio.addEventListener("pause", () => {
+          setIsPlaying(false);
+        });
 
-    // Play the audio
-    newAudio.play().catch((error) => {
-      console.error("Error playing audio:", error);
-      setIsPlaying(false);
-      setCurrentFile(null);
-    });
+        newAudio.addEventListener("ended", () => {
+          setIsPlaying(false);
+          setCurrentFile(null);
+        });
 
-    setAudio(newAudio);
-  };
+        newAudio.addEventListener("error", () => {
+          console.error("Audio error:", newAudio.error);
+          setIsPlaying(false);
+          setCurrentFile(null);
+          setIsLoading(false);
+        });
+      }
+
+      // Play the audio with better error handling
+      const playAudio = async () => {
+        try {
+          // Wait for the audio to be ready if it's not already
+          if (newAudio.readyState < 2) {
+            await new Promise((resolve, reject) => {
+              const timeout = setTimeout(() => {
+                reject(new Error("Audio loading timeout"));
+              }, 5000);
+
+              newAudio.addEventListener(
+                "canplay",
+                () => {
+                  clearTimeout(timeout);
+                  resolve(void 0);
+                },
+                { once: true }
+              );
+
+              newAudio.addEventListener(
+                "error",
+                () => {
+                  clearTimeout(timeout);
+                  reject(new Error("Audio loading error"));
+                },
+                { once: true }
+              );
+            });
+          }
+
+          await newAudio.play();
+        } catch (error) {
+          console.error("Error playing audio:", error);
+          setIsPlaying(false);
+          setCurrentFile(null);
+        }
+      };
+
+      playAudio();
+
+      // Only set audio state if it's a new element
+      if (!audio) {
+        setAudio(newAudio);
+      } else {
+        // Update current file for existing audio element
+        setCurrentFile(value);
+      }
+    },
+    [audio, currentFile]
+  );
 
   const fetchFiles = async () => {
     try {
@@ -115,11 +175,27 @@ export default function Player({ onFileUploaded }: PlayerProps = {}) {
     fetchFiles();
   }, []);
 
-  // Simple timer integration - pause audio when timer stops
+  // Timer integration - pause audio when timer stops, resume when timer starts
   useEffect(() => {
-    if (!isRunning && audio && !audio.paused) {
-      audio.pause();
+    // Clear any existing debounce timeout
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
     }
+
+    // Debounce the audio operations to prevent rapid calls
+    const timeout = setTimeout(() => {
+      if (!isRunning && audio && !audio.paused) {
+        // Pause audio when timer stops
+        audio.pause();
+      }
+    }, 100); // 100ms debounce
+
+    debounceTimeoutRef.current = timeout;
+
+    // Cleanup function
+    return () => {
+      clearTimeout(timeout);
+    };
   }, [isRunning, audio]);
 
   // Cleanup audio on unmount
@@ -131,6 +207,15 @@ export default function Player({ onFileUploaded }: PlayerProps = {}) {
       }
     };
   }, [audio]);
+
+  // Cleanup debounce timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div className="flex sm:flex-row gap-2 sm:gap-3 lg:gap-4 items-center justify-center w-full max-w-md sm:max-w-lg lg:max-w-xl">
@@ -164,7 +249,7 @@ export default function Player({ onFileUploaded }: PlayerProps = {}) {
       {currentFile && (
         <Button
           onClick={togglePlayPause}
-          disabled={isRunning || isLoading}
+          disabled={isLoading}
           className="cursor-pointer px-3 sm:px-4 lg:px-5 py-2 sm:py-2.5 lg:py-3 rounded-lg disabled:opacity-60 text-xs sm:text-sm lg:text-base h-8 sm:h-9 lg:h-10"
         >
           {isLoading ? (
