@@ -153,7 +153,7 @@ export default function Timer() {
           </div>
           <div className="flex items-center justify-center pb-4 sm:pb-6 lg:pb-8">
             <Button
-              className="cursor-pointer text-sm sm:text-base lg:text-lg xl:text-xl h-10 sm:h-12 lg:h-14 px-6 sm:px-8 lg:px-10 bg-neutral-800 hover:bg-neutral-700"
+              className="cursor-pointer text-sm sm:text-base lg:text-lg xl:text-xl h-10 sm:h-12 lg:h-12 px-6 sm:px-8 lg:px-10 bg-neutral-800 hover:bg-neutral-700"
               onClick={() => {
                 if (isRunning) {
                   pause();
