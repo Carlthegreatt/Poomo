@@ -4,7 +4,11 @@ import { Button } from "../ui/button";
 import { Upload } from "lucide-react";
 import { useTimer, Phase } from "../timer/useTimer";
 
-export default function uploadFile() {
+interface UploadProps {
+  onUploadSuccess?: () => void;
+}
+
+export default function uploadFile({ onUploadSuccess }: UploadProps = {}) {
   const [uploading, setUploading] = useState(false);
   const isRunning = useTimer((s) => s.isRunning);
 
@@ -64,6 +68,9 @@ export default function uploadFile() {
 
       if (res.ok) {
         alert("File uploaded successfully!");
+        if (onUploadSuccess) {
+          onUploadSuccess();
+        }
       } else {
         alert("Upload failed.");
       }
