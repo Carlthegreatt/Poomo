@@ -160,7 +160,6 @@ export default function Timer() {
                 } else {
                   if (remainingMs > 0 && phase !== "IDLE") {
                     resume();
-                    toast("Time to focus!");
                   } else {
                     start(selectedPhase);
                   }

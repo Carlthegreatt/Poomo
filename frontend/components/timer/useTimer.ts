@@ -1,5 +1,6 @@
 // components/timer/useTimer.ts
 import { create } from "zustand";
+import { toast } from "sonner";
 
 export type Phase = "IDLE" | "WORK" | "BREAK_SHORT" | "BREAK_LONG";
 
@@ -59,6 +60,7 @@ export const useTimer = create<TimerState>((set, get) => ({
     const ms = minutes ? Math.max(0, minutes * 60_000) : get().durations[phase];
     const target = Date.now() + ms;
     set({ phase, isRunning: true, remainingMs: ms, targetEndAt: target });
+    toast("dfdas");
   },
 
   pause: () => {
