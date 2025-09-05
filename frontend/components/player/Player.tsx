@@ -27,12 +27,12 @@ export default function Player() {
   }, []);
 
   return (
-    <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 lg:gap-4 items-center justify-center w-full max-w-md sm:max-w-lg lg:max-w-xl">
+    <div className="flex sm:flex-row gap-2 sm:gap-3 lg:gap-4 items-center justify-center w-full max-w-md sm:max-w-lg lg:max-w-xl">
       <Select
         disabled={isRunning}
         onValueChange={(value) => console.log("Selected file", value)}
       >
-        <SelectTrigger className="w-full sm:w-48 lg:w-56 xl:w-64 text-xs sm:text-sm">
+        <SelectTrigger className="sm:w-48 lg:w-56 xl:w-64 text-xs sm:text-sm">
           <SelectValue placeholder="Select background music" />
         </SelectTrigger>
         <SelectContent>

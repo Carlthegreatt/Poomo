@@ -1,5 +1,4 @@
 import { Button } from "../ui/button";
-import { LogIn } from "lucide-react";
 import { Settings } from "lucide-react";
 import { ChartBar } from "lucide-react";
 import { CircleUser } from "lucide-react";
@@ -10,13 +9,13 @@ export default function Header() {
       <div className="container flex h-18 justify-between items-center px-4">
         <div className="font-semibold text-2xl">Poomo</div>
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon">
-            <ChartBar className="h-4 w-4" />
+          <Button className="cursor-pointer" variant="ghost" size="icon">
+            <ChartBar className="cursor-pointer h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon">
+          <Button className="cursor-pointer" variant="ghost" size="icon">
             <Settings className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon">
+          <Button className="cursor-pointer" variant="ghost" size="icon">
             <CircleUser className="h-4 w-4" />
           </Button>
         </div>
