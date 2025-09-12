@@ -1,5 +1,9 @@
 {
   "dependencies": {
-    "lucide-react": "^0.542.0"
+    "decrypt": "^0.0.1",
+    "jose": "^6.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "lucide-react": "^0.542.0",
+    "zod": "^4.1.8"
   }
 }

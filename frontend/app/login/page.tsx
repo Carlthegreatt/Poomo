@@ -1,7 +1,8 @@
-export default function () {
+import LoginForm from "./loginForm";
+export default function Login() {
   return (
     <div>
-      <div></div>
+      <LoginForm></LoginForm>
     </div>
   );
 }
