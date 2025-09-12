@@ -1,3 +1,7 @@
 export default function () {
-  return <>ds</>;
+  return (
+    <div>
+      <div></div>
+    </div>
+  );
 }
