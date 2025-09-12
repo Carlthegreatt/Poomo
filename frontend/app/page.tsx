@@ -21,7 +21,7 @@ export default function home() {
           <Player onFileUploaded={handleFileUploaded} />
         </div>
       </div>
-      <Toaster />
+      <Toaster position="top-center"></Toaster>
     </div>
   );
 }
