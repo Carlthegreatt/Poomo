@@ -1,9 +1,12 @@
 {
-  "dependencies": {
-    "decrypt": "^0.0.1",
-    "jose": "^6.1.0",
-    "jsonwebtoken": "^9.0.2",
-    "lucide-react": "^0.542.0",
-    "zod": "^4.1.8"
+  "name": "poomo",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "packageManager": "npm@10.8.2",
+  "engines": {
+    "node": ">=20.11.0"
   }
 }

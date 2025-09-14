@@ -2,6 +2,8 @@ import { Button } from "../ui/button";
 import { Settings } from "lucide-react";
 import { ChartBar } from "lucide-react";
 import { CircleUser } from "lucide-react";
+import { logout } from "../../app/login/actions";
+import { LogOut } from "lucide-react";
 
 export default function Header() {
   return (
@@ -18,6 +20,16 @@ export default function Header() {
           <Button className="cursor-pointer" variant="ghost" size="icon">
             <CircleUser className="h-4 w-4" />
           </Button>
+          <form action={logout}>
+            <Button
+              className="cursor-pointer"
+              variant="ghost"
+              size="icon"
+              type="submit"
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </form>
         </div>
       </div>
     </header>

@@ -4,9 +4,11 @@ import Player from "@/components/player/Player";
 import Header from "@/components/header/header";
 import { Toaster } from "sonner";
 import { useState } from "react";
+import supabase from "@/lib/supabaseClient";
 
-export default function home() {
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+export default function Home() {
+  console.log(supabase);
+  const [, setRefreshTrigger] = useState(0);
 
   const handleFileUploaded = () => {
     setRefreshTrigger((prev) => prev + 1);
