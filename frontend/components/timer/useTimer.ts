@@ -49,8 +49,8 @@ export const useTimer = create<TimerState>((set, get) => ({
   targetEndAt: undefined,
   cycleCount: 0,
   durations: {
-    WORK: 1 * 6_000,
-    BREAK_SHORT: 2 * 6_000,
+    WORK: 250 * 6_000,
+    BREAK_SHORT: 50 * 6_000,
     BREAK_LONG: 15 * 60_000,
   },
   autoAdvance: true,
