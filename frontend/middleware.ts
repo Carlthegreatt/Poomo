@@ -1,26 +1,30 @@
-import { cookies } from "next/headers";
-import { NextRequest, NextResponse } from "next/server";
-import { decrypt } from "./lib/session";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
+
 const protectedRoutes = ["/dashboard"];
-const publicRoutes = ["/login"];
+const publicRoutes = ["/login", "/register"];
 
 export default async function middleware(req: NextRequest) {
+  const res = NextResponse.next();
+  const supabase = createMiddlewareClient({ req, res });
+
+  // Ensure we load/refresh the session
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
   const path = req.nextUrl.pathname;
-  const isProtectedRoute = protectedRoutes.includes(path);
-  const isPublicRoute = publicRoutes.includes(path);
+  const isProtected = protectedRoutes.includes(path);
+  const isPublic = publicRoutes.includes(path);
 
-  const cookieStore = await cookies();
-  const cookie = cookieStore.get("session")?.value;
-
-  const session = await decrypt(cookie);
-
-  if (isProtectedRoute && !session?.userId) {
-    return NextResponse.redirect(new URL("/login", req.nextUrl));
+  if (isProtected && !session?.user) {
+    return NextResponse.redirect(new URL("/login", req.url));
   }
 
-  if (isPublicRoute && session?.userId) {
-    return NextResponse.redirect(new URL("/", req.nextUrl));
+  if (isPublic && session?.user) {
+    return NextResponse.redirect(new URL("/", req.url));
   }
 
-  return NextResponse.next();
+  return res;
 }

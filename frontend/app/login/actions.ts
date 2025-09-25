@@ -1,48 +1,40 @@
 "use server";
 
 import { z } from "zod";
-import { createSession, deleteSession } from "../../lib/session";
 import { redirect } from "next/navigation";
-
-const testUser = {
-  id: "1",
-  email: "blancaflorcarlferros@gmail.com",
-  password: "12345678",
-};
+import { cookies } from "next/headers";
+import { createServerActionClient } from "@supabase/auth-helpers-nextjs";
 
 const loginSchema = z.object({
-  email: z.string().email({ message: "Invalid email address" }).trim(),
-  password: z
-    .string()
-    .min(8, { message: "Password must be at least 8 characters" })
-    .trim(),
+  email: z.string().email().trim(),
+  password: z.string().min(8).trim(),
 });
 
-export async function login(prevState: any, formData: FormData) {
-  const result = loginSchema.safeParse(Object.fromEntries(formData));
+type LoginState = { errors?: Record<string, string[]> } | undefined;
 
-  if (!result.success) {
-    return {
-      errors: result.error.flatten().fieldErrors,
-    };
+export async function login(_prevState: LoginState, formData: FormData) {
+  const parsed = loginSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { errors: parsed.error.flatten().fieldErrors };
   }
 
-  const { email, password } = result.data;
+  const supabase = createServerActionClient({ cookies });
+  const { email, password } = parsed.data;
 
-  if (email !== testUser.email || password !== testUser.password) {
-    return {
-      errors: {
-        email: ["Invalid email or password"],
-      },
-    };
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) {
+    return { errors: { email: [error.message] } };
   }
-
-  await createSession(testUser.id);
 
   redirect("/");
 }
 
 export async function logout() {
-  await deleteSession();
-  redirect("/login");
+  const supabase = createServerActionClient({ cookies });
+  await supabase.auth.signOut({ scope: "global" });
+  redirect("/");
+}
+
+export async function register() {
+  redirect("/register");
 }

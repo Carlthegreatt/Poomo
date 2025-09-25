@@ -15,10 +15,10 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen flex flex-col">
       <Header />
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-3.5rem)] p-4 sm:p-6 lg:p-8">
-        <div className="w-full max-w-4xl flex flex-col items-center gap-7 sm:gap-8 lg:gap-">
+      <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8">
+        <div className="w-full max-w-4xl flex flex-col items-center gap-6 sm:gap-8 lg:gap-10">
           <Timer />
           <Player onFileUploaded={handleFileUploaded} />
         </div>

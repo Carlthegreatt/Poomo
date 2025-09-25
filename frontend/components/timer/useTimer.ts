@@ -27,6 +27,8 @@ export interface TimerState {
   durations: Durations;
   autoAdvance: boolean;
   longBreakEvery: number;
+  musicVolume: number; // 0..1
+  bellVolume: number; // 0..1
 
   // actions
   start: (phase: Exclude<Phase, "IDLE">, minutes?: number) => void;
@@ -40,6 +42,8 @@ export interface TimerState {
   setDurations: (d: Partial<Durations>) => void;
   setAutoAdvance: (v: boolean) => void;
   setLongBreakEvery: (n: number) => void;
+  setMusicVolume: (v: number) => void;
+  setBellVolume: (v: number) => void;
 }
 
 export const useTimer = create<TimerState>((set, get) => ({
@@ -55,6 +59,8 @@ export const useTimer = create<TimerState>((set, get) => ({
   },
   autoAdvance: true,
   longBreakEvery: 4,
+  musicVolume: 0.7,
+  bellVolume: 0.7,
 
   start: (phase, minutes) => {
     const ms = minutes ? Math.max(0, minutes * 60_000) : get().durations[phase];
@@ -184,4 +190,10 @@ export const useTimer = create<TimerState>((set, get) => ({
   setAutoAdvance: (v) => set({ autoAdvance: v }),
 
   setLongBreakEvery: (n) => set({ longBreakEvery: Math.max(1, Math.floor(n)) }),
+
+  setMusicVolume: (v) =>
+    set({ musicVolume: Math.min(1, Math.max(0, Number.isFinite(v) ? v : 0)) }),
+
+  setBellVolume: (v) =>
+    set({ bellVolume: Math.min(1, Math.max(0, Number.isFinite(v) ? v : 0)) }),
 }));

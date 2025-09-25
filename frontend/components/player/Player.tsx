@@ -21,6 +21,7 @@ interface PlayerProps {
 
 export default function Player({ onFileUploaded }: PlayerProps = {}) {
   const isRunning = useTimer((s) => s.isRunning);
+  const musicVolume = useTimer((s) => s.musicVolume);
   const [files, setFiles] = useState<string[]>([]);
   const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -70,7 +71,7 @@ export default function Player({ onFileUploaded }: PlayerProps = {}) {
 
       // Set audio properties
       newAudio.preload = "metadata";
-      newAudio.volume = 0.7;
+      newAudio.volume = Math.min(1, Math.max(0, musicVolume));
 
       // Add event listeners (only if this is a new audio element)
       if (!audio) {
@@ -152,7 +153,7 @@ export default function Player({ onFileUploaded }: PlayerProps = {}) {
         setCurrentFile(value);
       }
     },
-    [audio, currentFile]
+    [audio, currentFile, musicVolume]
   );
 
   const fetchFiles = async () => {
@@ -174,6 +175,13 @@ export default function Player({ onFileUploaded }: PlayerProps = {}) {
   useEffect(() => {
     fetchFiles();
   }, []);
+
+  // React to volume changes for currently active audio
+  useEffect(() => {
+    if (audio) {
+      audio.volume = Math.min(1, Math.max(0, musicVolume));
+    }
+  }, [audio, musicVolume]);
 
   // Timer integration - pause audio when timer stops, resume when timer starts
   useEffect(() => {
@@ -218,9 +226,9 @@ export default function Player({ onFileUploaded }: PlayerProps = {}) {
   }, []);
 
   return (
-    <div className="flex sm:flex-row gap-2 sm:gap-3 lg:gap-4 items-center justify-center w-full max-w-md sm:max-w-lg lg:max-w-xl">
+    <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 lg:gap-4 items-stretch sm:items-center justify-center w-full max-w-md sm:max-w-lg lg:max-w-xl">
       <Select disabled={isRunning} onValueChange={handlePlay}>
-        <SelectTrigger className="sm:w-48 lg:w-56 xl:w-64 text-xs sm:text-sm">
+        <SelectTrigger className="w-full sm:w-48 lg:w-56 xl:w-64 text-xs sm:text-sm">
           <SelectValue
             placeholder={
               isPlaying
@@ -250,7 +258,7 @@ export default function Player({ onFileUploaded }: PlayerProps = {}) {
         <Button
           onClick={togglePlayPause}
           disabled={isLoading}
-          className="cursor-pointer px-3 sm:px-4 lg:px-5 py-2 sm:py-2.5 lg:py-3 rounded-lg disabled:opacity-60 text-xs sm:text-sm lg:text-base h-8 sm:h-9 lg:h-10"
+          className="cursor-pointer w-full sm:w-auto px-3 sm:px-4 lg:px-5 py-2 sm:py-2.5 lg:py-3 rounded-lg disabled:opacity-60 text-xs sm:text-sm lg:text-base h-8 sm:h-9 lg:h-10"
         >
           {isLoading ? (
             <div className="w-3 h-3 sm:w-4 sm:h-4 lg:w-5 lg:h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
@@ -262,7 +270,12 @@ export default function Player({ onFileUploaded }: PlayerProps = {}) {
         </Button>
       )}
 
-      <Upload onUploadSuccess={() => fetchFiles()} />
+      <Upload
+        onUploadSuccess={() => {
+          fetchFiles();
+          onFileUploaded?.();
+        }}
+      />
     </div>
   );
 }

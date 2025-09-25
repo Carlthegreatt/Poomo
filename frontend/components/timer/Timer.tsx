@@ -14,6 +14,7 @@ export default function Timer() {
   const pause = useTimer((s) => s.pause);
   const resume = useTimer((s) => s.resume);
   const setPhasePreview = useTimer((s) => s.setPhasePreview);
+  const bellVolume = useTimer((s) => s.bellVolume);
 
   // Preload audio for better performance and user gesture handling
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
@@ -52,7 +53,7 @@ export default function Timer() {
 
     // Preload the bell sound
     const audio = new Audio("/sounds/Bell.mp3");
-    audio.volume = 0.7;
+    audio.volume = Math.min(1, Math.max(0, bellVolume));
     audio.preload = "auto";
     setBellAudio(audio);
 
@@ -62,6 +63,13 @@ export default function Timer() {
       }
     };
   }, []);
+
+  // Keep bell volume in sync with settings
+  useEffect(() => {
+    if (bellAudio) {
+      bellAudio.volume = Math.min(1, Math.max(0, bellVolume));
+    }
+  }, [bellAudio, bellVolume]);
 
   // Function to initialize audio context on user gesture
   const initializeAudioOnUserGesture = () => {
@@ -89,10 +97,8 @@ export default function Timer() {
         console.warn("Could not play bell sound:", error);
         // Fallback: try creating a new audio instance
         try {
-          const fallbackAudio = new Audio(
-            "/sounds/School Bell Sound Effect No Copyright.mp3"
-          );
-          fallbackAudio.volume = 0.7;
+          const fallbackAudio = new Audio("/sounds/Bell.mp3");
+          fallbackAudio.volume = Math.min(1, Math.max(0, bellVolume));
           fallbackAudio.play().catch(() => {
             // Final fallback: just log the error
             console.warn("Fallback audio also failed to play");
@@ -240,15 +246,15 @@ export default function Timer() {
             Long Break
           </Button>
         </div>
-        <div className="flex flex-col justify-center items-center shadow-2xl bg-neutral-100 w-full max-w-sm sm:max-w-md lg:max-w-lg xl:max-w-xl aspect-[4/3] rounded-2xl sm:rounded-3xl lg:rounded-4xl p-4 sm:p-6 lg:p-8">
+        <div className="flex flex-col justify-center items-center shadow-2xl bg-neutral-100 w-full max-w-xs sm:max-w-md lg:max-w-lg xl:max-w-xl aspect-[4/3] rounded-xl sm:rounded-3xl lg:rounded-4xl p-3 sm:p-6 lg:p-8">
           <div className="flex-1 flex items-center justify-center">
-            <div className="font-bold text-7xl sm:text-7xl lg:text-7xl xl:text-7xl 2xl:text-8xl text-neutral-800 text-center text-responsive">
+            <div className="font-bold text-6xl sm:text-7xl lg:text-7xl xl:text-7xl 2xl:text-8xl text-neutral-800 text-center text-responsive leading-none">
               {mm}:{ss}
             </div>
           </div>
-          <div className="flex items-center justify-center pb-4 sm:pb-6 lg:pb-8">
+          <div className="flex items-center justify-center pb-3 sm:pb-6 lg:pb-8 w-full">
             <Button
-              className="cursor-pointer text-sm sm:text-base lg:text-lg xl:text-xl h-10 sm:h-12 lg:h-12 px-6 sm:px-8 lg:px-10 bg-neutral-800 hover:bg-neutral-700"
+              className="cursor-pointer w-full sm:w-auto text-base sm:text-base lg:text-lg xl:text-xl h-11 sm:h-12 lg:h-12 px-6 sm:px-8 lg:px-10 bg-neutral-800 hover:bg-neutral-700"
               onClick={() => {
                 // Initialize audio context on user gesture
                 initializeAudioOnUserGesture();

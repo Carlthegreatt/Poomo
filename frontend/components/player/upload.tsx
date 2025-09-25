@@ -2,7 +2,22 @@
 import { useState } from "react";
 import { Button } from "../ui/button";
 import { Upload as UploadIcon } from "lucide-react";
-import { useTimer, Phase } from "../timer/useTimer";
+import { useTimer } from "../timer/useTimer";
+
+type MinimalAcceptEntry = {
+  description?: string;
+  accept: Record<string, string[]>;
+};
+type MinimalOpenFilePickerOptions = {
+  multiple?: boolean;
+  types?: MinimalAcceptEntry[];
+};
+type FileSystemFileHandleLike = { getFile: () => Promise<File> };
+type FilePickerWindow = Window & {
+  showOpenFilePicker?: (
+    options?: MinimalOpenFilePickerOptions
+  ) => Promise<FileSystemFileHandleLike[]>;
+};
 
 interface UploadProps {
   onUploadSuccess?: () => void;
@@ -13,13 +28,17 @@ export default function Upload({ onUploadSuccess }: UploadProps = {}) {
   const isRunning = useTimer((s) => s.isRunning);
 
   const pickFile = async (): Promise<File | null> => {
+    const win =
+      typeof window !== "undefined"
+        ? (window as unknown as FilePickerWindow)
+        : (undefined as unknown as FilePickerWindow);
     const hasFilePicker =
       typeof window !== "undefined" &&
-      typeof (window as any).showOpenFilePicker === "function";
+      typeof win.showOpenFilePicker === "function";
 
     if (hasFilePicker) {
       try {
-        const [handle] = await (window as any).showOpenFilePicker({
+        const [handle] = await win.showOpenFilePicker!({
           multiple: false,
           types: [
             {
@@ -30,7 +49,7 @@ export default function Upload({ onUploadSuccess }: UploadProps = {}) {
         });
         const file = await handle.getFile();
         return file as File;
-      } catch (err) {
+      } catch {
         // If user cancels or API errors, fall through to input fallback
       }
     }
@@ -74,7 +93,7 @@ export default function Upload({ onUploadSuccess }: UploadProps = {}) {
       } else {
         alert("Upload failed.");
       }
-    } catch (err) {
+    } catch {
       alert("Upload failed.");
     } finally {
       setUploading(false);
@@ -82,11 +101,11 @@ export default function Upload({ onUploadSuccess }: UploadProps = {}) {
   };
 
   return (
-    <div>
+    <div className="w-full sm:w-auto">
       <Button
         onClick={handleButtonClick}
         disabled={isRunning}
-        className="cursor-pointer px-3 sm:px-4 lg:px-5 py-2 sm:py-2.5 lg:py-3 rounded-lg disabled:opacity-60 text-xs sm:text-sm lg:text-base h-8 sm:h-9 lg:h-10"
+        className="cursor-pointer w-full sm:w-auto px-3 sm:px-4 lg:px-5 py-2 sm:py-2.5 lg:py-3 rounded-lg disabled:opacity-60 text-xs sm:text-sm lg:text-base h-8 sm:h-9 lg:h-10"
       >
         {uploading ? (
           "Uploading..."
