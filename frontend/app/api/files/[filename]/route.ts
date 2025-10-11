@@ -4,17 +4,20 @@ import path from "path";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { filename: string } }
+  { params }: { params: Promise<{ filename: string }> }
 ) {
-  const filename = params.filename;
-  
+  const { filename } = await params;
+
   if (!filename) {
-    return NextResponse.json({ error: "Filename is required" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Filename is required" },
+      { status: 400 }
+    );
   }
 
   try {
     const filePath = path.join(process.cwd(), "uploads", filename);
-    
+
     // Check if file exists
     if (!fs.existsSync(filePath)) {
       return NextResponse.json({ error: "File not found" }, { status: 404 });
@@ -22,11 +25,11 @@ export async function GET(
 
     // Read the file
     const fileBuffer = fs.readFileSync(filePath);
-    
+
     // Determine content type based on file extension
     const ext = path.extname(filename).toLowerCase();
     let contentType = "audio/mpeg"; // default to mp3
-    
+
     switch (ext) {
       case ".mp3":
         contentType = "audio/mpeg";
@@ -58,6 +61,9 @@ export async function GET(
     });
   } catch (error) {
     console.error("Error serving file:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
 }

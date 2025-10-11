@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { createServerActionClient } from "@supabase/auth-helpers-nextjs";
+import { createServerClient } from "@supabase/ssr";
 
 const loginSchema = z.object({
   email: z.string().email().trim(),
@@ -12,13 +12,40 @@ const loginSchema = z.object({
 
 type LoginState = { errors?: Record<string, string[]> } | undefined;
 
+async function createSupabaseServer() {
+  const cookieStore = await cookies();
+
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          } catch {
+            // The `setAll` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+          }
+        },
+      },
+    }
+  );
+}
+
 export async function login(_prevState: LoginState, formData: FormData) {
   const parsed = loginSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     return { errors: parsed.error.flatten().fieldErrors };
   }
 
-  const supabase = createServerActionClient({ cookies });
+  const supabase = await createSupabaseServer();
   const { email, password } = parsed.data;
 
   const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -30,7 +57,7 @@ export async function login(_prevState: LoginState, formData: FormData) {
 }
 
 export async function logout() {
-  const supabase = createServerActionClient({ cookies });
+  const supabase = await createSupabaseServer();
   await supabase.auth.signOut({ scope: "global" });
   redirect("/");
 }
