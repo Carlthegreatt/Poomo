@@ -6,6 +6,11 @@ import { SendHorizontal, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useChat } from "@/hooks/useChat";
 import type { ChatMessage } from "@/lib/ai/chatStorage";
+import { TimerWidget } from "@/components/chat/widgets/TimerWidget";
+import { BoardWidget } from "@/components/chat/widgets/BoardWidget";
+import { CalendarWidget } from "@/components/chat/widgets/CalendarWidget";
+import { StatsWidget } from "@/components/chat/widgets/StatsWidget";
+import type { WidgetType } from "@/lib/ai/chatStorage";
 
 const SUGGESTIONS = [
   "Start a focus session",
@@ -57,6 +62,21 @@ function InputBar({
   );
 }
 
+function WidgetRenderer({ type }: { type: WidgetType }) {
+  switch (type) {
+    case "timer":
+      return <TimerWidget />;
+    case "board":
+      return <BoardWidget />;
+    case "calendar":
+      return <CalendarWidget />;
+    case "stats":
+      return <StatsWidget />;
+    default:
+      return null;
+  }
+}
+
 function MessageBubble({
   message,
   isStreaming,
@@ -87,6 +107,7 @@ function MessageBubble({
             transition={{ duration: 1, repeat: Infinity, times: [0, 0.5, 0.5, 1] }}
           />
         )}
+        {!isUser && message.widget && <WidgetRenderer type={message.widget} />}
       </div>
     </motion.div>
   );
