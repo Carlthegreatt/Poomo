@@ -10,7 +10,10 @@ import {
 } from "@/lib/ai/chatStorage";
 import { buildContext } from "@/lib/ai/context";
 import { executeActions } from "@/lib/ai/executor";
+import { matchIntent } from "@/lib/ai/intents";
 import type { ChatAction } from "@/lib/ai/tools";
+import { useCalendar } from "@/stores/calendarStore";
+import { useKanban } from "@/stores/kanbanStore";
 
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -22,6 +25,8 @@ export function useChat() {
     if (!initializedRef.current) {
       initializedRef.current = true;
       setMessages(loadChatHistory());
+      useCalendar.getState().loadEvents();
+      useKanban.getState().loadBoard();
     }
   }, []);
 
@@ -42,6 +47,23 @@ export function useChat() {
         content: "",
       };
 
+      const intent = matchIntent(trimmed);
+
+      if (intent) {
+        const filled: ChatMessage = {
+          ...assistantMsg,
+          content: intent.response,
+          widget: intent.widget,
+        };
+        setMessages((prev) => {
+          const next = [...prev, userMsg, filled];
+          saveChatHistory(next);
+          return next;
+        });
+        await intent.execute();
+        return;
+      }
+
       setMessages((prev) => {
         const next = [...prev, userMsg, assistantMsg];
         saveChatHistory(next);
@@ -53,8 +75,9 @@ export function useChat() {
 
       try {
         const allMessages = [...messages, userMsg];
-        const geminiMessages = toGeminiMessages(allMessages);
-        const context = buildContext();
+        const recentMessages = allMessages.slice(-8);
+        const geminiMessages = toGeminiMessages(recentMessages);
+        const context = await buildContext();
 
         const response = await fetch("/api/chat", {
           method: "POST",
@@ -64,7 +87,7 @@ export function useChat() {
         });
 
         if (!response.ok || !response.body) {
-          throw new Error(`API error: ${response.status}`);
+          throw new Error("unavailable");
         }
 
         const reader = response.body.getReader();
@@ -143,7 +166,8 @@ export function useChat() {
           if (last?.role === "assistant" && !last.content) {
             updated[updated.length - 1] = {
               ...last,
-              content: "Sorry, something went wrong. Please try again.",
+              content:
+                "I'm temporarily unavailable. Please try again shortly.",
             };
           }
           saveChatHistory(updated);
