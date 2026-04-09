@@ -2,29 +2,27 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { SendHorizontal, Bot, User, Sparkles } from "lucide-react";
+import { SendHorizontal, Bot, User, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
-interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-}
+import { useChat } from "@/hooks/useChat";
+import type { ChatMessage } from "@/lib/ai/chatStorage";
 
 const SUGGESTIONS = [
-  "How can I stay focused longer?",
-  "Tips for better breaks",
-  "Help me plan my tasks",
+  "Start a focus session",
+  "What's on my todo list?",
+  "Schedule a study session tomorrow at 3pm",
 ];
 
 function InputBar({
   input,
+  disabled,
   textareaRef,
   onSend,
   onChange,
   onKeyDown,
 }: {
   input: string;
+  disabled: boolean;
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
   onSend: () => void;
   onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
@@ -40,29 +38,34 @@ function InputBar({
           onKeyDown={onKeyDown}
           placeholder="Type a message..."
           rows={1}
-          className="flex-1 resize-none bg-transparent text-sm leading-relaxed placeholder:text-muted-foreground focus:outline-none py-1"
+          disabled={disabled}
+          className="flex-1 resize-none bg-transparent text-sm leading-relaxed placeholder:text-muted-foreground focus:outline-none py-1 disabled:opacity-50"
         />
         <motion.div whileTap={{ scale: 0.9 }}>
           <Button
             variant="filled"
             size="icon"
             onClick={onSend}
-            disabled={!input.trim()}
+            disabled={!input.trim() || disabled}
             className="shrink-0 size-8 rounded-xl"
           >
             <SendHorizontal className="size-4" />
           </Button>
         </motion.div>
       </div>
-      <p className="text-center text-[0.625rem] text-muted-foreground mt-2">
-        AI features coming soon
-      </p>
     </div>
   );
 }
 
-function MessageBubble({ message }: { message: Message }) {
+function MessageBubble({
+  message,
+  isStreaming,
+}: {
+  message: ChatMessage;
+  isStreaming: boolean;
+}) {
   const isUser = message.role === "user";
+  const showCursor = !isUser && isStreaming;
 
   return (
     <motion.div
@@ -87,7 +90,14 @@ function MessageBubble({ message }: { message: Message }) {
           isUser ? "bg-primary text-white" : "bg-white text-foreground"
         }`}
       >
-        {message.content}
+        {message.content || "\u00A0"}
+        {showCursor && (
+          <motion.span
+            className="inline-block w-0.5 h-4 bg-foreground ml-0.5 align-text-bottom"
+            animate={{ opacity: [1, 1, 0, 0] }}
+            transition={{ duration: 1, repeat: Infinity, times: [0, 0.5, 0.5, 1] }}
+          />
+        )}
       </div>
     </motion.div>
   );
@@ -124,37 +134,25 @@ function TypingIndicator() {
 }
 
 export default function ChatView() {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const { messages, isStreaming, sendMessage, clearHistory } = useChat();
   const [input, setInput] = useState("");
-  const [showTyping, setShowTyping] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, showTyping, scrollToBottom]);
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isStreaming]);
 
   const handleSend = useCallback(() => {
     const trimmed = input.trim();
     if (!trimmed) return;
 
-    setMessages((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), role: "user", content: trimmed },
-    ]);
+    sendMessage(trimmed);
     setInput("");
-
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
-
-    setShowTyping(true);
-    setTimeout(() => setShowTyping(false), 1500);
-  }, [input]);
+  }, [input, sendMessage]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -176,15 +174,19 @@ export default function ChatView() {
     [],
   );
 
-  const handleSuggestion = useCallback((text: string) => {
-    setMessages([
-      { id: crypto.randomUUID(), role: "user", content: text },
-    ]);
-    setShowTyping(true);
-    setTimeout(() => setShowTyping(false), 1500);
-  }, []);
+  const handleSuggestion = useCallback(
+    (text: string) => {
+      sendMessage(text);
+    },
+    [sendMessage],
+  );
 
   const hasMessages = messages.length > 0;
+  const showTyping =
+    isStreaming &&
+    messages.length > 0 &&
+    messages[messages.length - 1]?.role === "assistant" &&
+    !messages[messages.length - 1]?.content;
 
   return (
     <AnimatePresence mode="wait">
@@ -209,13 +211,15 @@ export default function ChatView() {
             <div className="text-center">
               <h2 className="text-2xl font-bold">Poomo AI</h2>
               <p className="text-sm text-muted-foreground mt-1">
-                Ask me anything about productivity
+                Your productivity assistant — start timers, add tasks, check
+                stats
               </p>
             </div>
           </motion.div>
 
           <InputBar
             input={input}
+            disabled={isStreaming}
             textareaRef={textareaRef}
             onSend={handleSend}
             onChange={handleTextareaChange}
@@ -249,14 +253,31 @@ export default function ChatView() {
           transition={{ duration: 0.2 }}
           className="flex-1 flex flex-col min-h-0 overflow-hidden"
         >
+          <div className="flex items-center justify-end px-4 pt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearHistory}
+              className="text-xs text-muted-foreground gap-1"
+            >
+              <Trash2 className="size-3" />
+              Clear chat
+            </Button>
+          </div>
+
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-2xl mx-auto flex flex-col gap-4 p-4 sm:p-6 pb-4">
-              {messages.map((msg) => (
-                <MessageBubble key={msg.id} message={msg} />
-              ))}
-              <AnimatePresence>
-                {showTyping && <TypingIndicator />}
-              </AnimatePresence>
+              {messages.map((msg, i) => {
+                const isLast = i === messages.length - 1;
+                return (
+                  <MessageBubble
+                    key={msg.id}
+                    message={msg}
+                    isStreaming={isLast && isStreaming}
+                  />
+                );
+              })}
+              <AnimatePresence>{showTyping && <TypingIndicator />}</AnimatePresence>
               <div ref={messagesEndRef} />
             </div>
           </div>
@@ -264,6 +285,7 @@ export default function ChatView() {
           <div className="border-t border-border/20 bg-background p-4">
             <InputBar
               input={input}
+              disabled={isStreaming}
               textareaRef={textareaRef}
               onSend={handleSend}
               onChange={handleTextareaChange}
