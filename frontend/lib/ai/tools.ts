@@ -94,29 +94,6 @@ export const poomoTools: FunctionDeclaration[] = [
       required: ["title", "start", "end"],
     },
   },
-  {
-    name: "get_tasks",
-    description:
-      "Get all tasks from the kanban board to see what the user is working on",
-    parameters: {
-      type: Type.OBJECT,
-      properties: {},
-    },
-  },
-  {
-    name: "get_stats",
-    description: "Get the user's focus session statistics",
-    parameters: {
-      type: Type.OBJECT,
-      properties: {
-        period: {
-          type: Type.STRING,
-          description: "Time period for stats. Defaults to today.",
-          enum: ["today", "week", "all"],
-        },
-      },
-    },
-  },
 ];
 
 export interface ChatAction {

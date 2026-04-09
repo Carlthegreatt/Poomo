@@ -33,25 +33,44 @@ export interface AppContext {
   };
 }
 
-export function buildContext(): AppContext {
-  const kanban = useKanban.getState();
+const MAX_CONTEXT_EVENTS = 10;
+const MAX_CONTEXT_TASKS = 15;
+
+export async function buildContext(): Promise<AppContext> {
+  let { events } = useCalendar.getState();
+  let { tasks, columns } = useKanban.getState();
+
+  if (events.length === 0 && !useCalendar.getState().isLoading) {
+    await useCalendar.getState().loadEvents();
+    events = useCalendar.getState().events;
+  }
+  if (tasks.length === 0 && !useKanban.getState().isLoading) {
+    await useKanban.getState().loadBoard();
+    ({ tasks, columns } = useKanban.getState());
+  }
+
   const timer = useTimer.getState();
-  const calendar = useCalendar.getState();
   const stats = useStats.getState();
 
-  const columnMap = new Map(kanban.columns.map((c) => [c.id, c.title]));
+  const columnMap = new Map(columns.map((c) => [c.id, c.title]));
 
   const streaks = stats.getStreaks();
   const lifetime = stats.getLifetimeStats();
 
+  const now = new Date().toISOString();
+  const upcomingEvents = events
+    .filter((e) => e.end >= now)
+    .sort((a, b) => a.start.localeCompare(b.start))
+    .slice(0, MAX_CONTEXT_EVENTS);
+
   return {
-    tasks: kanban.tasks.map((t) => ({
+    tasks: tasks.slice(0, MAX_CONTEXT_TASKS).map((t) => ({
       title: t.title,
       column: columnMap.get(t.column_id) ?? "Unknown",
       due_date: t.due_date,
       description: t.description,
     })),
-    events: calendar.events.map((e) => ({
+    events: upcomingEvents.map((e) => ({
       title: e.title,
       start: e.start,
       end: e.end,
