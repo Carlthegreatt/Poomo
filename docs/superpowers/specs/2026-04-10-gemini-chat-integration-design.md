@@ -23,7 +23,16 @@ interface ChatRequest {
     tasks: { title: string; column: string; due_date: string | null; description: string | null }[];
     events: { title: string; start: string; end: string; all_day: boolean }[];
     timer: { phase: string; isRunning: boolean; remainingMs: number };
-    stats: { recentSessions: FocusSession[] };
+    stats: {
+      todayCount: number;
+      todayMinutes: number;
+      thisWeekSessions: number;
+      thisWeekMinutes: number;
+      totalSessions: number;
+      totalFocusMinutes: number;
+      currentStreak: number;
+      bestStreak: number;
+    };
   };
 }
 ```
