@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { SendHorizontal, Bot, User, Sparkles, Trash2 } from "lucide-react";
+import { SendHorizontal, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useChat } from "@/hooks/useChat";
 import type { ChatMessage } from "@/lib/ai/chatStorage";
@@ -72,19 +72,8 @@ function MessageBubble({
       initial={{ opacity: 0, y: 10, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.2, ease: "easeOut" }}
-      className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : ""}`}
+      className={`flex ${isUser ? "justify-end" : "justify-start"}`}
     >
-      <div
-        className={`size-7 rounded-full border-2 border-border flex items-center justify-center shrink-0 shadow-[1.5px_1.5px_0_black] ${
-          isUser ? "bg-primary text-white" : "bg-white"
-        }`}
-      >
-        {isUser ? (
-          <User className="size-3.5" />
-        ) : (
-          <Bot className="size-3.5" />
-        )}
-      </div>
       <div
         className={`max-w-[75%] rounded-2xl border-2 border-border px-4 py-2.5 text-sm leading-relaxed shadow-[2px_2px_0_black] ${
           isUser ? "bg-primary text-white" : "bg-white text-foreground"
@@ -109,11 +98,8 @@ function TypingIndicator() {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -4 }}
-      className="flex gap-2.5"
+      className="flex justify-start"
     >
-      <div className="size-7 rounded-full border-2 border-border flex items-center justify-center shrink-0 shadow-[1.5px_1.5px_0_black] bg-white">
-        <Bot className="size-3.5" />
-      </div>
       <div className="rounded-2xl border-2 border-border px-4 py-3 bg-white shadow-[2px_2px_0_black] flex items-center gap-1">
         {[0, 1, 2].map((i) => (
           <motion.span
@@ -269,6 +255,7 @@ export default function ChatView() {
             <div className="max-w-2xl mx-auto flex flex-col gap-4 p-4 sm:p-6 pb-4">
               {messages.map((msg, i) => {
                 const isLast = i === messages.length - 1;
+                if (isLast && showTyping) return null;
                 return (
                   <MessageBubble
                     key={msg.id}
