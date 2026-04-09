@@ -114,6 +114,7 @@ export function useChat() {
               const event = JSON.parse(payload) as
                 | { type: "text_delta"; content: string }
                 | { type: "actions"; actions: ChatAction[] }
+                | { type: "widget"; widget: string }
                 | { type: "error"; message: string };
 
               if (event.type === "text_delta") {
@@ -130,6 +131,18 @@ export function useChat() {
                 });
               } else if (event.type === "actions") {
                 pendingActions = event.actions;
+              } else if (event.type === "widget") {
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  const last = updated[updated.length - 1];
+                  if (last?.role === "assistant") {
+                    updated[updated.length - 1] = {
+                      ...last,
+                      widget: event.widget as ChatMessage["widget"],
+                    };
+                  }
+                  return updated;
+                });
               } else if (event.type === "error") {
                 setMessages((prev) => {
                   const updated = [...prev];
