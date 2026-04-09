@@ -9,7 +9,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "Poomo",
-  description: "GPomodoro app",
+  description: "Pomodoro app",
 };
 
 export default function RootLayout({

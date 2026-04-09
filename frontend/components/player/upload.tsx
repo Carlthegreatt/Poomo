@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Button } from "../ui/button";
 import { Upload as UploadIcon } from "lucide-react";
 import { useTimer } from "../timer/useTimer";
+import { toast } from "sonner";
 
 type MinimalAcceptEntry = {
   description?: string;
@@ -86,15 +87,15 @@ export default function Upload({ onUploadSuccess }: UploadProps = {}) {
       });
 
       if (res.ok) {
-        alert("File uploaded successfully!");
+        toast.success("File uploaded successfully!");
         if (onUploadSuccess) {
           onUploadSuccess();
         }
       } else {
-        alert("Upload failed.");
+        toast.error("Upload failed.");
       }
     } catch {
-      alert("Upload failed.");
+      toast.error("Upload failed.");
     } finally {
       setUploading(false);
     }
@@ -105,12 +106,12 @@ export default function Upload({ onUploadSuccess }: UploadProps = {}) {
       <Button
         onClick={handleButtonClick}
         disabled={isRunning}
-        className="cursor-pointer w-full sm:w-auto px-3 sm:px-4 lg:px-5 py-2 sm:py-2.5 lg:py-3 rounded-lg disabled:opacity-60 text-xs sm:text-sm lg:text-base h-8 sm:h-9 lg:h-10"
+        size="icon"
       >
         {uploading ? (
-          "Uploading..."
+          <div className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
         ) : (
-          <UploadIcon className="w-3 h-3 sm:w-4 sm:h-4 lg:w-5 lg:h-5"></UploadIcon>
+          <UploadIcon className="size-4" />
         )}
       </Button>
     </div>

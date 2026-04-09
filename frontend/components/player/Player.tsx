@@ -240,35 +240,38 @@ export default function Player({ onFileUploaded }: PlayerProps = {}) {
         <SelectContent>
           <SelectGroup>
             <SelectLabel>Your music</SelectLabel>
-            {files.map((file) => (
-              <SelectItem
-                key={file}
-                value={file}
-                className="text-xs sm:text-sm"
-              >
-                {file}
-              </SelectItem>
-            ))}
+            {files.length === 0 ? (
+              <div className="px-2 py-4 text-center text-xs text-muted-foreground">
+                No music uploaded yet
+              </div>
+            ) : (
+              files.map((file) => (
+                <SelectItem
+                  key={file}
+                  value={file}
+                  className="text-xs sm:text-sm"
+                >
+                  {file}
+                </SelectItem>
+              ))
+            )}
           </SelectGroup>
         </SelectContent>
       </Select>
 
-      {/* Manual play/pause button */}
-      {currentFile && (
-        <Button
-          onClick={togglePlayPause}
-          disabled={isLoading}
-          className="cursor-pointer w-full sm:w-auto px-3 sm:px-4 lg:px-5 py-2 sm:py-2.5 lg:py-3 rounded-lg disabled:opacity-60 text-xs sm:text-sm lg:text-base h-8 sm:h-9 lg:h-10"
-        >
-          {isLoading ? (
-            <div className="w-3 h-3 sm:w-4 sm:h-4 lg:w-5 lg:h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-          ) : isPlaying ? (
-            <Pause className="w-3 h-3 sm:w-4 sm:h-4 lg:w-5 lg:h-5" />
-          ) : (
-            <Play className="w-3 h-3 sm:w-4 sm:h-4 lg:w-5 lg:h-5" />
-          )}
-        </Button>
-      )}
+      <Button
+        onClick={togglePlayPause}
+        disabled={isLoading || !currentFile}
+        size="icon"
+      >
+        {isLoading ? (
+          <div className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+        ) : isPlaying ? (
+          <Pause className="size-4" />
+        ) : (
+          <Play className="size-4" />
+        )}
+      </Button>
 
       <Upload
         onUploadSuccess={() => {

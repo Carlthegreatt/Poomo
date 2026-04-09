@@ -1,6 +1,6 @@
-// components/timer/useTimer.ts
 import { create } from "zustand";
 import { toast } from "sonner";
+import { logSession } from "@/lib/stats";
 
 export type Phase = "IDLE" | "WORK" | "BREAK_SHORT" | "BREAK_LONG";
 
@@ -23,12 +23,15 @@ export interface TimerState {
   isRunning: boolean;
   remainingMs: number;
   targetEndAt?: number;
-  cycleCount: number; // completed work sessions since last long break
+  cycleCount: number;
   durations: Durations;
   autoAdvance: boolean;
   longBreakEvery: number;
-  musicVolume: number; // 0..1
-  bellVolume: number; // 0..1
+  musicVolume: number;
+  bellVolume: number;
+
+  activeTaskId: string | null;
+  activeTaskTitle: string | null;
 
   // actions
   start: (phase: Exclude<Phase, "IDLE">, minutes?: number) => void;
@@ -37,6 +40,7 @@ export interface TimerState {
   reset: () => void;
   tick: (now?: number) => void;
   setPhasePreview: (phase: Exclude<Phase, "IDLE">) => void;
+  setActiveTask: (id: string | null, title: string | null) => void;
 
   // settings
   setDurations: (d: Partial<Durations>) => void;
@@ -61,6 +65,9 @@ export const useTimer = create<TimerState>((set, get) => ({
   longBreakEvery: 4,
   musicVolume: 0.7,
   bellVolume: 0.7,
+
+  activeTaskId: null,
+  activeTaskTitle: null,
 
   start: (phase, minutes) => {
     const ms = minutes ? Math.max(0, minutes * 60_000) : get().durations[phase];
@@ -100,7 +107,6 @@ export const useTimer = create<TimerState>((set, get) => ({
     if (diff <= 0) {
       // finished the current phase
       const finishedPhase = phase;
-      // notify listeners immediately with the finished phase
       finishListeners.forEach((fn) => {
         try {
           fn(finishedPhase);
@@ -109,7 +115,25 @@ export const useTimer = create<TimerState>((set, get) => ({
         }
       });
 
-      // decide next state based on autoAdvance and cycle logic
+      const phaseMap = {
+        WORK: "focus",
+        BREAK_SHORT: "shortBreak",
+        BREAK_LONG: "longBreak",
+      } as const;
+
+      const { durations, activeTaskId, activeTaskTitle } = get();
+      const phaseDuration = durations[finishedPhase as keyof Durations];
+      const endedAt = new Date();
+      const startedAt = new Date(endedAt.getTime() - phaseDuration);
+
+      logSession({
+        startedAt: startedAt.toISOString(),
+        endedAt: endedAt.toISOString(),
+        phase: phaseMap[finishedPhase as keyof typeof phaseMap] ?? "focus",
+        durationMs: phaseDuration,
+        taskId: finishedPhase === "WORK" ? activeTaskId : null,
+        taskTitle: finishedPhase === "WORK" ? activeTaskTitle : null,
+      });
       set((s) => {
         // If we just finished a WORK session, increment cycleCount
         if (s.phase === "WORK") {
@@ -184,6 +208,9 @@ export const useTimer = create<TimerState>((set, get) => ({
     const dur = get().durations[phase];
     set({ phase, isRunning: false, remainingMs: dur, targetEndAt: undefined });
   },
+
+  setActiveTask: (id, title) =>
+    set({ activeTaskId: id, activeTaskTitle: title }),
 
   setDurations: (d) => set((s) => ({ durations: { ...s.durations, ...d } })),
 

@@ -1,13 +1,13 @@
-# Outline Warm Sunset UI Redesign — Design Spec
+# Retro Outline UI Redesign — Design Spec
 
 ## Goal
 
-Transform Poomo's UI from a neutral/gray filled-element style to a **playful, vibrant outline style** with a **warm sunset color palette** (coral, orange, hot pink, golden yellow) on a clean white background. Each timer phase gets a distinct color. Includes code cleanup and proper restructuring.
+Transform Poomo's UI from a neutral/gray filled-element style to a **playful, vibrant outline style** with a **retro color palette** on a clean white background. Each timer phase gets a distinct bold color. Includes code cleanup and proper restructuring.
 
 ## Design Decisions
 
 - **Style**: Playful & vibrant — thick rounded borders, bold saturated colors, minimal shadows
-- **Palette**: Warm sunset — coral (Focus), orange (Short Break), hot pink (Long Break), golden yellow (accent)
+- **Palette**: Retro — coral red #FD5A46 (Focus), blue #058CD7 (Short Break), purple #552CB7 (Long Break), golden yellow #FFC567 (accent), green #00995E (success), pink #FB7DA8 (secondary)
 - **Background**: Clean white/cream
 - **Approach**: Systematic theme + shadcn variant overhaul (Approach B) with coding standards cleanup
 
@@ -23,42 +23,42 @@ Replace the current neutral achromatic palette with warm sunset values.
 
 | Token | Value | Purpose |
 |-------|-------|---------|
-| `--phase-focus` | `oklch(0.65 0.2 25)` | Coral — Focus phase primary |
-| `--phase-focus-light` | `oklch(0.92 0.06 25)` | Light coral — Focus phase bg tint |
-| `--phase-short` | `oklch(0.72 0.17 55)` | Orange — Short Break primary |
-| `--phase-short-light` | `oklch(0.93 0.05 55)` | Light orange — Short Break bg tint |
-| `--phase-long` | `oklch(0.65 0.22 350)` | Hot pink — Long Break primary |
-| `--phase-long-light` | `oklch(0.93 0.06 350)` | Light pink — Long Break bg tint |
+| `--phase-focus` | `#FD5A46` | Coral red — Focus phase primary |
+| `--phase-focus-light` | `#FEE2DF` | Light coral — Focus phase bg tint |
+| `--phase-short` | `#058CD7` | Blue — Short Break primary |
+| `--phase-short-light` | `#DCEEFB` | Light blue — Short Break bg tint |
+| `--phase-long` | `#552CB7` | Purple — Long Break primary |
+| `--phase-long-light` | `#E8E0F5` | Light purple — Long Break bg tint |
 
 **Core variable overrides:**
 
 | Token | Old Value | New Value | Reason |
 |-------|-----------|-----------|--------|
-| `--primary` | `oklch(0.205 0 0)` (near-black) | `oklch(0.65 0.2 25)` (coral) | Warm primary brand color |
-| `--primary-foreground` | `oklch(0.985 0 0)` (white) | `oklch(1 0 0)` (white) | Stays white for contrast on coral |
-| `--secondary` | `oklch(0.97 0 0)` (gray) | `oklch(0.95 0.03 55)` (warm cream) | Warm secondary surface |
-| `--secondary-foreground` | `oklch(0.205 0 0)` | `oklch(0.35 0.05 25)` (warm dark) | Warm dark text |
-| `--muted` | `oklch(0.97 0 0)` | `oklch(0.96 0.015 55)` (warm gray) | Subtle warm muted |
-| `--muted-foreground` | `oklch(0.556 0 0)` | `oklch(0.55 0.03 25)` (warm mid gray) | Warm muted text |
-| `--accent` | `oklch(0.97 0 0)` | `oklch(0.95 0.03 55)` (warm tint) | Warm hover background |
-| `--accent-foreground` | `oklch(0.205 0 0)` | `oklch(0.35 0.05 25)` | Warm accent text |
-| `--destructive` | `oklch(0.577 0.245 27.325)` | Keep as-is | Already warm-ish red |
-| `--border` | `oklch(0.922 0 0)` (light gray) | `oklch(0.85 0.04 25)` (warm visible) | Thicker, warmer border baseline |
-| `--input` | `oklch(0.922 0 0)` | `oklch(0.85 0.04 25)` | Match border |
-| `--ring` | `oklch(0.708 0 0)` | `oklch(0.65 0.2 25)` (coral) | Coral focus ring |
-| `--background` | `oklch(1 0 0)` (pure white) | `oklch(0.995 0.003 80)` (barely warm) | Subtle warm white |
-| `--foreground` | `oklch(0.145 0 0)` (near-black) | `oklch(0.2 0.02 25)` (warm near-black) | Warm dark text |
-| `--card` | `oklch(1 0 0)` | `oklch(1 0 0)` (white) | Clean white card |
-| `--card-foreground` | `oklch(0.145 0 0)` | `oklch(0.2 0.02 25)` | Warm dark |
-| `--popover` | `oklch(1 0 0)` | `oklch(1 0 0)` | White popover |
-| `--popover-foreground` | `oklch(0.145 0 0)` | `oklch(0.2 0.02 25)` | Warm dark |
+| `--primary` | `oklch(0.205 0 0)` (near-black) | `#FD5A46` (coral red) | Retro primary brand color |
+| `--primary-foreground` | `oklch(0.985 0 0)` (white) | `#ffffff` (white) | Stays white for contrast |
+| `--secondary` | `oklch(0.97 0 0)` (gray) | `#FFF0F3` (light pink tint) | Soft retro secondary surface |
+| `--secondary-foreground` | `oklch(0.205 0 0)` | `#3d2040` (warm dark) | Dark text on pink tint |
+| `--muted` | `oklch(0.97 0 0)` | `#f5f0e8` (warm cream) | Subtle retro muted |
+| `--muted-foreground` | `oklch(0.556 0 0)` | `#78716c` (warm mid gray) | Muted text |
+| `--accent` | `oklch(0.97 0 0)` | `#FFF8E7` (light golden tint) | Golden hover background |
+| `--accent-foreground` | `oklch(0.205 0 0)` | `#44403c` (warm dark) | Accent text |
+| `--destructive` | `oklch(0.577 0.245 27.325)` | Keep as-is | Already fits retro red |
+| `--border` | `oklch(0.922 0 0)` (light gray) | `#e8ddd0` (warm visible) | Warm visible border |
+| `--input` | `oklch(0.922 0 0)` | `#e8ddd0` | Match border |
+| `--ring` | `oklch(0.708 0 0)` | `#FD5A46` (coral red) | Coral focus ring |
+| `--background` | `oklch(1 0 0)` | `#FFFDF9` (warm white) | Subtle warm white |
+| `--foreground` | `oklch(0.145 0 0)` | `#1c1917` (warm near-black) | Warm dark text |
+| `--card` | `oklch(1 0 0)` | `#ffffff` (white) | Clean white card |
+| `--card-foreground` | `oklch(0.145 0 0)` | `#1c1917` | Warm dark |
+| `--popover` | `oklch(1 0 0)` | `#ffffff` | White popover |
+| `--popover-foreground` | `oklch(0.145 0 0)` | `#1c1917` | Warm dark |
 | `--radius` | `0.625rem` | `0.75rem` | Rounder for playful feel |
 
 **New token:**
 
 | Token | Value | Purpose |
 |-------|-------|---------|
-| `--success` | `oklch(0.65 0.17 145)` | Success messages (replaces hardcoded `text-green-600`) |
+| `--success` | `#00995E` | Success messages (retro green, replaces hardcoded `text-green-600`) |
 
 **Removals:**
 - All `--sidebar-*` variables (unused — no sidebar in the app)

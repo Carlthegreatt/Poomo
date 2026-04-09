@@ -3,8 +3,33 @@
 import { Button } from "../ui/button";
 
 import React, { useEffect, useState } from "react";
+import { motion, useAnimationControls } from "framer-motion";
 import { useTimer, Phase } from "./useTimer";
-import { toast, Toaster } from "sonner";
+import TaskPicker from "./TaskPicker";
+
+const PHASE_CONFIG = {
+  WORK: {
+    label: "Focus",
+    text: "text-phase-focus",
+    filled: "bg-phase-focus hover:bg-phase-focus/85",
+    pillSelected: "bg-phase-focus text-white",
+    shadowColor: "var(--phase-focus)",
+  },
+  BREAK_SHORT: {
+    label: "Short Break",
+    text: "text-phase-short",
+    filled: "bg-phase-short hover:bg-phase-short/85",
+    pillSelected: "bg-phase-short text-white",
+    shadowColor: "var(--phase-short)",
+  },
+  BREAK_LONG: {
+    label: "Long Break",
+    text: "text-phase-long",
+    filled: "bg-phase-long hover:bg-phase-long/85",
+    pillSelected: "bg-phase-long text-white",
+    shadowColor: "var(--phase-long)",
+  },
+} as const;
 
 export default function Timer() {
   const phase = useTimer((s) => s.phase);
@@ -20,24 +45,13 @@ export default function Timer() {
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
   const [bellAudio, setBellAudio] = useState<HTMLAudioElement | null>(null);
 
-  const bgClass =
-    phase === "BREAK_SHORT"
-      ? "bg-emerald-50"
-      : phase === "BREAK_LONG"
-      ? "bg-sky-50"
-      : phase === "WORK"
-      ? "bg-white"
-      : "bg-white";
-
-  const textClass =
-    phase === "BREAK_SHORT"
-      ? "Short Break"
-      : phase === "BREAK_LONG"
-      ? "Long Break"
-      : phase === "WORK";
+  const cardControls = useAnimationControls();
 
   const [selectedPhase, setSelectedPhase] =
     useState<Exclude<Phase, "IDLE">>("WORK");
+
+  const activePhase: Exclude<Phase, "IDLE"> =
+    phase !== "IDLE" ? (phase as Exclude<Phase, "IDLE">) : selectedPhase;
 
   // Initialize audio context and preload bell sound
   useEffect(() => {
@@ -111,20 +125,20 @@ export default function Timer() {
   };
 
   useEffect(() => {
-    // Subscribe to timer finish events
     const unsub = useTimer.subscribe((state, prevState) => {
       if (
         prevState.phase !== state.phase &&
         prevState.isRunning &&
         !state.isRunning
       ) {
-        // Timer just finished a phase
         const finishedPhase = prevState.phase as Phase;
 
-        // Play bell sound
         playBellSound();
+        cardControls.start({
+          scale: [1, 1.03, 1],
+          transition: { duration: 0.4, ease: "easeInOut" },
+        });
 
-        // show a web notification if permission granted
         if ("Notification" in window && Notification.permission === "granted") {
           new Notification(`${finishedPhase} finished!`);
         }
@@ -133,7 +147,7 @@ export default function Timer() {
     return () => {
       if (typeof unsub === "function") unsub();
     };
-  }, [bellAudio, audioContext]);
+  }, [bellAudio, audioContext, cardControls]);
 
   useEffect(() => {
     let worker: Worker | null = null;
@@ -192,71 +206,47 @@ export default function Timer() {
   const getPhaseButtonClass = (type: Exclude<Phase, "IDLE">) => {
     const isSelected = isRunning ? phase === type : selectedPhase === type;
     if (!isSelected) return "";
-    switch (type) {
-      case "WORK":
-        return "bg-red-100 border border-neutral-300";
-      case "BREAK_SHORT":
-        return "bg-emerald-100 border border-emerald-200";
-      case "BREAK_LONG":
-        return "bg-sky-100 border border-sky-200";
-    }
+    return `${PHASE_CONFIG[type].pillSelected} shadow-none translate-x-[3px] translate-y-[3px]`;
   };
 
   return (
     <main className="w-full">
-      <div className="flex flex-col items-center justify-center gap-4 sm:gap-6 lg:gap-8 xl:gap-10 landscape-compact">
+      <div className="flex flex-col items-center justify-center gap-4 sm:gap-6 lg:gap-8 xl:gap-10">
         <div className="flex flex-wrap gap-2 sm:gap-3 lg:gap-4 justify-center">
-          <Button
-            variant={"outline"}
-            className={`cursor-pointer rounded-full text-xs sm:text-sm lg:text-base px-3 sm:px-4 lg:px-6 py-2 ${getPhaseButtonClass(
-              "WORK"
-            )}`}
-            disabled={isRunning}
-            onClick={() => {
-              setSelectedPhase("WORK");
-              if (!isRunning) setPhasePreview("WORK");
-            }}
-          >
-            Focus
-          </Button>
-          <Button
-            variant={"outline"}
-            className={`cursor-pointer rounded-full text-xs sm:text-sm lg:text-base px-3 sm:px-4 lg:px-6 py-2 ${getPhaseButtonClass(
-              "BREAK_SHORT"
-            )}`}
-            disabled={isRunning}
-            onClick={() => {
-              setSelectedPhase("BREAK_SHORT");
-              if (!isRunning) setPhasePreview("BREAK_SHORT");
-            }}
-          >
-            Short Break
-          </Button>
-          <Button
-            variant={"outline"}
-            className={`cursor-pointer rounded-full text-xs sm:text-sm lg:text-base px-3 sm:px-4 lg:px-6 py-2 ${getPhaseButtonClass(
-              "BREAK_LONG"
-            )}`}
-            disabled={isRunning}
-            onClick={() => {
-              setSelectedPhase("BREAK_LONG");
-              if (!isRunning) setPhasePreview("BREAK_LONG");
-            }}
-          >
-            Long Break
-          </Button>
+          {(["WORK", "BREAK_SHORT", "BREAK_LONG"] as const).map((type) => (
+            <motion.div
+              key={type}
+              whileHover={!isRunning ? { y: -2 } : undefined}
+              whileTap={!isRunning ? { scale: 0.95 } : undefined}
+            >
+              <Button
+                variant="outline"
+                className={`rounded-full text-xs sm:text-sm lg:text-base px-3 sm:px-4 lg:px-6 py-2 ${getPhaseButtonClass(type)}`}
+                disabled={isRunning}
+                onClick={() => {
+                  setSelectedPhase(type);
+                  if (!isRunning) setPhasePreview(type);
+                }}
+              >
+                {PHASE_CONFIG[type].label}
+              </Button>
+            </motion.div>
+          ))}
         </div>
-        <div className="flex flex-col justify-center items-center shadow-2xl bg-neutral-100 w-full max-w-xs sm:max-w-md lg:max-w-lg xl:max-w-xl aspect-[4/3] rounded-xl sm:rounded-3xl lg:rounded-4xl p-3 sm:p-6 lg:p-8">
-          <div className="flex-1 flex items-center justify-center">
-            <div className="font-bold text-6xl sm:text-7xl lg:text-7xl xl:text-7xl 2xl:text-8xl text-neutral-800 text-center text-responsive leading-none">
-              {mm}:{ss}
-            </div>
+        <TaskPicker />
+        <motion.div
+          animate={cardControls}
+          className="flex flex-col items-center border-2 border-border bg-white w-full max-w-xs sm:max-w-md lg:max-w-lg xl:max-w-xl rounded-3xl py-10 sm:py-14 lg:py-16 px-6 sm:px-10 lg:px-12 gap-6 sm:gap-8 transition-[box-shadow,color] duration-300"
+          style={{ boxShadow: `6px 6px 0 ${PHASE_CONFIG[activePhase].shadowColor}` }}
+        >
+          <div className={`font-bold text-6xl sm:text-7xl lg:text-8xl xl:text-8xl 2xl:text-9xl ${PHASE_CONFIG[activePhase].text} text-center leading-none transition-colors`}>
+            {mm}:{ss}
           </div>
-          <div className="flex items-center justify-center pb-3 sm:pb-6 lg:pb-8 w-full">
+          <motion.div whileTap={{ scale: 0.95 }}>
             <Button
-              className="cursor-pointer w-full sm:w-auto text-base sm:text-base lg:text-lg xl:text-xl h-11 sm:h-12 lg:h-12 px-6 sm:px-8 lg:px-10 bg-neutral-800 hover:bg-neutral-700"
+              variant="filled"
+              className={`w-full sm:w-auto text-base lg:text-lg xl:text-xl h-11 sm:h-12 lg:h-12 px-6 sm:px-8 lg:px-10 ${PHASE_CONFIG[activePhase].filled} text-white`}
               onClick={() => {
-                // Initialize audio context on user gesture
                 initializeAudioOnUserGesture();
 
                 if (isRunning) {
@@ -270,14 +260,10 @@ export default function Timer() {
                 }
               }}
             >
-              {isRunning
-                ? "Pause"
-                : remainingMs > 0 && phase !== "IDLE"
-                ? "Start"
-                : "Start"}
+              {isRunning ? "Pause" : "Start"}
             </Button>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       </div>
     </main>
   );
