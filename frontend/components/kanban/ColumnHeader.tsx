@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Button } from "../ui/button";
+import { Button } from "@/components/ui/button";
 import { Pencil, Trash2, Check, X } from "lucide-react";
-import { useKanban } from "./useKanban";
+import { useKanban } from "@/stores/kanbanStore";
 
 interface ColumnHeaderProps {
   columnId: string;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useStats } from "./useStats";
+import { useStats } from "@/stores/statsStore";
 import OverviewTab from "./OverviewTab";
 import SessionsTab from "./SessionsTab";
 import ChartsTab from "./ChartsTab";

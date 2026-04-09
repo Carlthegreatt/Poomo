@@ -18,12 +18,12 @@ import {
   horizontalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { useState } from "react";
-import { useKanban } from "./useKanban";
+import { useKanban } from "@/stores/kanbanStore";
 import Column from "./Column";
 import TaskCard from "./TaskCard";
 import { Plus } from "lucide-react";
-import { Input } from "../ui/input";
-import { Button } from "../ui/button";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import type { KanbanTask } from "@/lib/kanban";
 
 const WIDTHS_KEY = "poomo-kanban-widths";

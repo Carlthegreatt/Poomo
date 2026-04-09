@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { ListChecks } from "lucide-react";
-import { useStats } from "./useStats";
+import { useStats } from "@/stores/statsStore";
 import { TASK_COLORS } from "@/lib/kanban";
 
 function formatMinutes(ms: number): string {
@@ -51,7 +51,7 @@ export default function TasksTab() {
 
               return (
                 <motion.div
-                  key={item.taskId ?? "__unlinked__"}
+                  key={item.taskId ?? `unlinked-${i}`}
                   initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.25, delay: 0.2 + i * 0.06 }}

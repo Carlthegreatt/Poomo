@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { Flame, Clock, Sigma, CalendarClock, TrendingUp, Star } from "lucide-react";
-import { useStats } from "./useStats";
+import { useStats } from "@/stores/statsStore";
 
 interface StatCardProps {
   icon: React.ReactNode;

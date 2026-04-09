@@ -3,10 +3,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Trash2, LayoutDashboard } from "lucide-react";
-import { Button } from "../ui/button";
-import { Input } from "../ui/input";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { EVENT_COLORS } from "@/lib/calendar";
-import { useCalendar, type CalendarEntry } from "./useCalendar";
+import { useCalendar, type CalendarEntry } from "@/stores/calendarStore";
 
 interface EventModalProps {
   open: boolean;

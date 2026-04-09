@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { Target } from "lucide-react";
-import { useStats } from "./useStats";
+import { useStats } from "@/stores/statsStore";
 
 const RING_SIZE = 72;
 const STROKE_WIDTH = 6;

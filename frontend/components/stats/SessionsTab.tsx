@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { motion } from "framer-motion";
-import { useStats } from "./useStats";
+import { useStats } from "@/stores/statsStore";
 
 const PHASE_LABELS: Record<string, string> = {
   focus: "Focus",

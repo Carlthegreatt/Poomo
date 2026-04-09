@@ -2,9 +2,9 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Button } from "../ui/button";
+import { Button } from "@/components/ui/button";
 import { Trash2, Calendar } from "lucide-react";
-import { useKanban } from "./useKanban";
+import { useKanban } from "@/stores/kanbanStore";
 import type { KanbanTask } from "@/lib/kanban";
 
 interface TaskCardProps {

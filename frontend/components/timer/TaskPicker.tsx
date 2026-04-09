@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Target, X } from "lucide-react";
 import { fetchBoard, type KanbanTask } from "@/lib/kanban";
-import { useTimer } from "./useTimer";
+import { useTimer } from "@/stores/timerStore";
 
 export default function TaskPicker() {
   const activeTaskId = useTimer((s) => s.activeTaskId);

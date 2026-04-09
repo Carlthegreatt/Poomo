@@ -24,7 +24,7 @@ import "@/styles/calendar.css";
 import CalendarToolbar from "./CalendarToolbar";
 import EventCard, { eventStyleGetter } from "./EventCard";
 import EventModal from "./EventModal";
-import { useCalendar, type CalendarEntry } from "./useCalendar";
+import { useCalendar, type CalendarEntry } from "@/stores/calendarStore";
 import { fetchBoard } from "@/lib/kanban";
 import { EVENT_COLORS } from "@/lib/calendar";
 

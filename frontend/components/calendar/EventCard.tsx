@@ -2,7 +2,7 @@
 
 import type { EventProps } from "react-big-calendar";
 import { LayoutDashboard } from "lucide-react";
-import type { CalendarEntry } from "./useCalendar";
+import type { CalendarEntry } from "@/stores/calendarStore";
 
 export default function EventCard({ event }: EventProps<CalendarEntry>) {
   const color = event.color ?? "var(--primary)";

@@ -1,3 +1,6 @@
+import { readJSON, writeJSON, generateId } from "@/lib/storage";
+import { STORAGE_KEYS } from "@/lib/constants";
+
 export interface FocusSession {
   id: string;
   startedAt: string;
@@ -8,23 +11,14 @@ export interface FocusSession {
   taskTitle: string | null;
 }
 
-const SESSIONS_KEY = "poomo-sessions";
-const GOAL_KEY = "poomo-daily-goal";
 const DEFAULT_GOAL = 8;
 
 function readSessions(): FocusSession[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(SESSIONS_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw) as FocusSession[];
-  } catch {
-    return [];
-  }
+  return readJSON<FocusSession[]>(STORAGE_KEYS.SESSIONS, []);
 }
 
 function writeSessions(sessions: FocusSession[]): void {
-  localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+  writeJSON(STORAGE_KEYS.SESSIONS, sessions);
 }
 
 export async function fetchSessions(): Promise<FocusSession[]> {
@@ -37,7 +31,7 @@ export function logSession(
   session: Omit<FocusSession, "id">,
 ): FocusSession {
   const sessions = readSessions();
-  const entry: FocusSession = { ...session, id: crypto.randomUUID() };
+  const entry: FocusSession = { ...session, id: generateId() };
   sessions.push(entry);
   writeSessions(sessions);
   return entry;
@@ -50,7 +44,7 @@ export async function clearSessions(): Promise<void> {
 export function getDailyGoal(): number {
   if (typeof window === "undefined") return DEFAULT_GOAL;
   try {
-    const raw = localStorage.getItem(GOAL_KEY);
+    const raw = localStorage.getItem(STORAGE_KEYS.DAILY_GOAL);
     if (!raw) return DEFAULT_GOAL;
     const n = parseInt(raw, 10);
     return Number.isFinite(n) && n > 0 ? n : DEFAULT_GOAL;
@@ -60,7 +54,10 @@ export function getDailyGoal(): number {
 }
 
 export function setDailyGoal(goal: number): void {
-  localStorage.setItem(GOAL_KEY, String(Math.max(1, Math.floor(goal))));
+  localStorage.setItem(
+    STORAGE_KEYS.DAILY_GOAL,
+    String(Math.max(1, Math.floor(goal))),
+  );
 }
 
 function startOfDay(date: Date): Date {
@@ -221,9 +218,7 @@ export function getLifetimeStats(sessions: FocusSession[]): LifetimeStats {
   }
   const activeDays = dayMap.size;
   const avgDailyMinutes =
-    activeDays > 0
-      ? Math.round(totalFocusMs / 60_000 / activeDays)
-      : 0;
+    activeDays > 0 ? Math.round(totalFocusMs / 60_000 / activeDays) : 0;
 
   const dowTotals = [0, 0, 0, 0, 0, 0, 0];
   const DOW_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -235,8 +230,7 @@ export function getLifetimeStats(sessions: FocusSession[]): LifetimeStats {
   for (let i = 1; i < 7; i++) {
     if (dowTotals[i] > dowTotals[bestDow]) bestDow = i;
   }
-  const mostProductiveDay =
-    totalSessions > 0 ? DOW_NAMES[bestDow] : null;
+  const mostProductiveDay = totalSessions > 0 ? DOW_NAMES[bestDow] : null;
 
   const now = new Date();
   const weekStart = startOfDay(new Date(now));

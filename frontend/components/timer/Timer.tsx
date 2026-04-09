@@ -1,10 +1,10 @@
 "use client";
 
-import { Button } from "../ui/button";
+import { Button } from "@/components/ui/button";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { motion, useAnimationControls } from "framer-motion";
-import { useTimer, Phase } from "./useTimer";
+import { useTimer, type Phase } from "@/stores/timerStore";
 import TaskPicker from "./TaskPicker";
 
 const PHASE_CONFIG = {
@@ -41,9 +41,8 @@ export default function Timer() {
   const setPhasePreview = useTimer((s) => s.setPhasePreview);
   const bellVolume = useTimer((s) => s.bellVolume);
 
-  // Preload audio for better performance and user gesture handling
-  const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
-  const [bellAudio, setBellAudio] = useState<HTMLAudioElement | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const bellAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const cardControls = useAnimationControls();
 
@@ -53,75 +52,59 @@ export default function Timer() {
   const activePhase: Exclude<Phase, "IDLE"> =
     phase !== "IDLE" ? (phase as Exclude<Phase, "IDLE">) : selectedPhase;
 
-  // Initialize audio context and preload bell sound
   useEffect(() => {
-    // Create audio context for better sound handling
     if (typeof window !== "undefined" && "AudioContext" in window) {
       try {
-        const ctx = new AudioContext();
-        setAudioContext(ctx);
+        audioContextRef.current = new AudioContext();
       } catch (error) {
         console.warn("Could not create AudioContext:", error);
       }
     }
 
-    // Preload the bell sound
     const audio = new Audio("/sounds/Bell.mp3");
     audio.volume = Math.min(1, Math.max(0, bellVolume));
     audio.preload = "auto";
-    setBellAudio(audio);
+    bellAudioRef.current = audio;
 
     return () => {
-      if (audioContext) {
-        audioContext.close();
-      }
+      audioContextRef.current?.close();
+      audioContextRef.current = null;
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Keep bell volume in sync with settings
   useEffect(() => {
-    if (bellAudio) {
-      bellAudio.volume = Math.min(1, Math.max(0, bellVolume));
+    if (bellAudioRef.current) {
+      bellAudioRef.current.volume = Math.min(1, Math.max(0, bellVolume));
     }
-  }, [bellAudio, bellVolume]);
+  }, [bellVolume]);
 
-  // Function to initialize audio context on user gesture
   const initializeAudioOnUserGesture = () => {
-    if (audioContext && audioContext.state === "suspended") {
-      audioContext.resume().catch(() => {
-        // Ignore if resume fails
-      });
+    const ctx = audioContextRef.current;
+    if (ctx && ctx.state === "suspended") {
+      ctx.resume().catch(() => {});
     }
   };
 
-  // Function to play bell sound with proper error handling
   const playBellSound = () => {
-    if (bellAudio) {
-      // Reset audio to beginning in case it was played before
-      bellAudio.currentTime = 0;
+    const audio = bellAudioRef.current;
+    if (!audio) return;
 
-      // Resume audio context if it's suspended (required by some browsers)
-      if (audioContext && audioContext.state === "suspended") {
-        audioContext.resume().catch(() => {
-          // Ignore if resume fails
-        });
-      }
+    audio.currentTime = 0;
 
-      bellAudio.play().catch((error) => {
-        console.warn("Could not play bell sound:", error);
-        // Fallback: try creating a new audio instance
-        try {
-          const fallbackAudio = new Audio("/sounds/Bell.mp3");
-          fallbackAudio.volume = Math.min(1, Math.max(0, bellVolume));
-          fallbackAudio.play().catch(() => {
-            // Final fallback: just log the error
-            console.warn("Fallback audio also failed to play");
-          });
-        } catch (fallbackError) {
-          console.warn("Could not create fallback audio:", fallbackError);
-        }
-      });
+    const ctx = audioContextRef.current;
+    if (ctx && ctx.state === "suspended") {
+      ctx.resume().catch(() => {});
     }
+
+    audio.play().catch(() => {
+      try {
+        const fallback = new Audio("/sounds/Bell.mp3");
+        fallback.volume = Math.min(1, Math.max(0, bellVolume));
+        fallback.play().catch(() => {});
+      } catch {
+        /* exhausted fallbacks */
+      }
+    });
   };
 
   useEffect(() => {
@@ -140,14 +123,17 @@ export default function Timer() {
         });
 
         if ("Notification" in window && Notification.permission === "granted") {
-          new Notification(`${finishedPhase} finished!`);
+          const label =
+            PHASE_CONFIG[finishedPhase as keyof typeof PHASE_CONFIG]?.label ??
+            finishedPhase;
+          new Notification(`${label} finished!`);
         }
       }
     });
     return () => {
       if (typeof unsub === "function") unsub();
     };
-  }, [bellAudio, audioContext, cardControls]);
+  }, [cardControls]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     let worker: Worker | null = null;

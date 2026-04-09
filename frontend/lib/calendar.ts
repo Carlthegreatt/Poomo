@@ -1,3 +1,8 @@
+import { readJSON, writeJSON, generateId } from "@/lib/storage";
+import { ACCENT_COLORS, STORAGE_KEYS } from "@/lib/constants";
+
+export { ACCENT_COLORS as EVENT_COLORS };
+
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -9,51 +14,29 @@ export interface CalendarEvent {
   created_at: string;
 }
 
-export const EVENT_COLORS = [
-  "#FFC567",
-  "#FB7DA8",
-  "#FD5A46",
-  "#552CB7",
-  "#00995E",
-  "#058CD7",
-] as const;
-
-const STORAGE_KEY = "poomo-calendar";
-
-function readStorage(): CalendarEvent[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw) as CalendarEvent[];
-  } catch {
-    return [];
-  }
+function readEvents(): CalendarEvent[] {
+  return readJSON<CalendarEvent[]>(STORAGE_KEYS.CALENDAR, []);
 }
 
-function writeStorage(events: CalendarEvent[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(events));
-}
-
-function generateId(): string {
-  return crypto.randomUUID();
+function writeEvents(events: CalendarEvent[]): void {
+  writeJSON(STORAGE_KEYS.CALENDAR, events);
 }
 
 export async function fetchEvents(): Promise<CalendarEvent[]> {
-  return readStorage();
+  return readEvents();
 }
 
 export async function createEvent(
   event: Omit<CalendarEvent, "id" | "created_at">,
 ): Promise<CalendarEvent> {
-  const events = readStorage();
+  const events = readEvents();
   const newEvent: CalendarEvent = {
     ...event,
     id: generateId(),
     created_at: new Date().toISOString(),
   };
   events.push(newEvent);
-  writeStorage(events);
+  writeEvents(events);
   return newEvent;
 }
 
@@ -61,15 +44,15 @@ export async function updateEvent(
   id: string,
   updates: Partial<Omit<CalendarEvent, "id" | "created_at">>,
 ): Promise<CalendarEvent> {
-  const events = readStorage();
+  const events = readEvents();
   const idx = events.findIndex((e) => e.id === id);
   if (idx === -1) throw new Error("Event not found");
   events[idx] = { ...events[idx], ...updates };
-  writeStorage(events);
+  writeEvents(events);
   return events[idx];
 }
 
 export async function deleteEvent(id: string): Promise<void> {
-  const events = readStorage();
-  writeStorage(events.filter((e) => e.id !== id));
+  const events = readEvents();
+  writeEvents(events.filter((e) => e.id !== id));
 }
