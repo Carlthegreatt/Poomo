@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+} from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { SendHorizontal, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,14 +26,17 @@ const SUGGESTIONS = [
 
 function scrollTranscriptToBottom(el: HTMLDivElement | null) {
   if (!el) return;
+  const apply = () => {
+    try {
+      el.scrollTo({ top: el.scrollHeight, behavior: "auto" });
+    } catch {
+      el.scrollTop = el.scrollHeight;
+    }
+  };
+  apply();
+  queueMicrotask(apply);
   requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      try {
-        el.scrollTo({ top: el.scrollHeight, behavior: "auto" });
-      } catch {
-        el.scrollTop = el.scrollHeight;
-      }
-    });
+    requestAnimationFrame(apply);
   });
 }
 
@@ -166,10 +175,39 @@ export default function ChatView() {
     messages[messages.length - 1]?.role === "assistant" &&
     !messages[messages.length - 1]?.content;
 
-  useEffect(() => {
+  const lastMessageId = messages[messages.length - 1]?.id;
+
+  useLayoutEffect(() => {
     if (!hasMessages) return;
     scrollTranscriptToBottom(scrollRef.current);
-  }, [messages, isStreaming, hasMessages]);
+  }, [hasMessages, messages.length, lastMessageId, isStreaming]);
+
+  // Framer / flex layout can leave scrollHeight wrong on first paint; re-flush when thread appears.
+  useEffect(() => {
+    if (!hasMessages) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    const timers = [0, 120, 300].map((ms) =>
+      window.setTimeout(() => scrollTranscriptToBottom(el), ms)
+    );
+    return () => timers.forEach(clearTimeout);
+  }, [hasMessages]);
+
+  useEffect(() => {
+    const flush = () => {
+      if (!document.hidden && scrollRef.current && messages.length > 0) {
+        scrollTranscriptToBottom(scrollRef.current);
+      }
+    };
+    document.addEventListener("visibilitychange", flush);
+    window.addEventListener("focus", flush);
+    window.addEventListener("pageshow", flush);
+    return () => {
+      document.removeEventListener("visibilitychange", flush);
+      window.removeEventListener("focus", flush);
+      window.removeEventListener("pageshow", flush);
+    };
+  }, [messages.length]);
 
   const handleSend = useCallback(() => {
     const trimmed = input.trim();
@@ -278,6 +316,17 @@ export default function ChatView() {
             transition={{ duration: 0.2 }}
             className="flex-1 flex flex-col min-h-0 overflow-hidden w-full"
           >
+            <div className="shrink-0 flex justify-end px-4 pt-2 pb-1 border-b border-border/30 bg-background/95 z-10">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearHistory}
+                className="text-xs text-muted-foreground gap-1"
+              >
+                <Trash2 className="size-3" />
+                Clear chat
+              </Button>
+            </div>
             <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto">
               <div className="max-w-2xl mx-auto flex flex-col gap-4 p-4 sm:p-6 pb-4">
                 {messages.map((msg, i) => {
@@ -296,17 +345,6 @@ export default function ChatView() {
             </div>
 
             <div className="shrink-0 sticky bottom-0 z-20 border-t border-border/40 bg-background/95 backdrop-blur-sm supports-[backdrop-filter]:bg-background/85">
-              <div className="flex justify-end px-4 pt-2 pb-0">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={clearHistory}
-                  className="text-xs text-muted-foreground gap-1"
-                >
-                  <Trash2 className="size-3" />
-                  Clear chat
-                </Button>
-              </div>
               <div className="p-4 pt-2">
                 <InputBar {...inputBarProps} />
               </div>
