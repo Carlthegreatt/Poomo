@@ -74,7 +74,9 @@ export default function Column({ column, tasks, width, index = 0, onResize }: Co
     transition,
     opacity: isDragging ? 0.5 : 1,
     width: `${width}px`,
-    animation: `columnEntrance 0.3s ease-out ${index * 0.05}s both`,
+    animation: isDragging
+      ? "none"
+      : `columnEntrance 0.3s ease-out ${index * 0.05}s both`,
   };
 
   return (

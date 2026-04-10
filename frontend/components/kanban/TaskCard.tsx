@@ -45,9 +45,11 @@ export default function TaskCard({ task, isOverlay }: TaskCardProps) {
     <div
       ref={setNodeRef}
       style={style}
-      className={`group flex border-2 border-border bg-white rounded-xl shadow-[2px_2px_0_black] overflow-hidden cursor-grab active:cursor-grabbing transition-[transform,box-shadow] duration-150 hover:-translate-y-0.5 hover:shadow-[3px_3px_0_black] ${
-        isOverlay ? "rotate-3 scale-105" : ""
-      }`}
+      className={`group flex border-2 border-border bg-white rounded-xl overflow-hidden cursor-grab active:cursor-grabbing ${
+        isDragging
+          ? "shadow-[2px_2px_0_black]"
+          : "shadow-[2px_2px_0_black] transition-[transform,box-shadow] duration-150 hover:-translate-y-0.5 hover:shadow-[3px_3px_0_black]"
+      } ${isOverlay ? "rotate-3 scale-105" : ""}`}
       {...attributes}
       {...listeners}
     >

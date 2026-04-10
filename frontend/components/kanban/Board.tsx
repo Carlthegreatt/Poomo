@@ -291,8 +291,12 @@ export default function Board() {
         {activeColumnId && (() => {
           const col = columns.find((c) => c.id === activeColumnId);
           if (!col) return null;
+          const w = columnWidths[col.id] ?? DEFAULT_WIDTH;
           return (
-            <div className="w-[320px] h-[200px] border-2 border-border bg-white rounded-3xl shadow-[4px_4px_0_black] opacity-80" />
+            <div
+              style={{ width: w }}
+              className="h-[200px] border-2 border-border bg-white rounded-3xl shadow-[4px_4px_0_black] opacity-80 flex-shrink-0"
+            />
           );
         })()}
       </DragOverlay>
