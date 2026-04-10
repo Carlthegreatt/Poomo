@@ -295,8 +295,12 @@ export default function Board() {
           return (
             <div
               style={{ width: w }}
-              className="h-[200px] border-2 border-border bg-white rounded-3xl shadow-[4px_4px_0_black] opacity-80 flex-shrink-0"
-            />
+              className="min-h-[200px] border-2 border-border bg-white rounded-3xl shadow-[4px_4px_0_black] opacity-95 flex-shrink-0 flex flex-col"
+            >
+              <div className="p-3">
+                <p className="text-sm font-semibold truncate">{col.title}</p>
+              </div>
+            </div>
           );
         })()}
       </DragOverlay>
