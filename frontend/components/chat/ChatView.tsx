@@ -209,107 +209,111 @@ export default function ChatView() {
     [sendMessage],
   );
 
+  const inputBarProps = {
+    input,
+    disabled: isStreaming,
+    textareaRef,
+    onSend: handleSend,
+    onChange: handleTextareaChange,
+    onKeyDown: handleKeyDown,
+  } as const;
+
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden w-full">
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto">
-        <AnimatePresence mode="wait">
-          {!hasMessages ? (
+      <AnimatePresence mode="wait">
+        {!hasMessages ? (
+          <motion.div
+            key="welcome"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.2 }}
+            className="flex-1 flex flex-col items-center justify-center min-h-0 px-4 py-8 gap-8 overflow-y-auto"
+          >
             <motion.div
-              key="welcome"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.2 }}
-              className="min-h-full flex flex-col items-center justify-center px-4 py-8 gap-8"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3, delay: 0.1 }}
+              className="flex flex-col items-center gap-4"
             >
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.3, delay: 0.1 }}
-                className="flex flex-col items-center gap-4"
-              >
-                <div className="size-14 rounded-2xl bg-primary/10 border-2 border-border shadow-[3px_3px_0_black] flex items-center justify-center">
-                  <Sparkles className="size-7 text-primary" />
-                </div>
-                <div className="text-center">
-                  <h2 className="text-2xl font-bold">Poomo AI</h2>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Your productivity assistant — start timers, add tasks, check
-                    stats
-                  </p>
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.25 }}
-                className="flex flex-wrap justify-center gap-2"
-              >
-                {SUGGESTIONS.map((s) => (
-                  <motion.button
-                    key={s}
-                    whileHover={{ y: -2 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => handleSuggestion(s)}
-                    className="border-2 border-border rounded-full px-4 py-1.5 text-sm font-medium bg-white shadow-[2px_2px_0_black] hover:bg-secondary hover:text-secondary-foreground active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-colors cursor-pointer"
-                  >
-                    {s}
-                  </motion.button>
-                ))}
-              </motion.div>
+              <div className="size-14 rounded-2xl bg-primary/10 border-2 border-border shadow-[3px_3px_0_black] flex items-center justify-center">
+                <Sparkles className="size-7 text-primary" />
+              </div>
+              <div className="text-center">
+                <h2 className="text-2xl font-bold">Poomo AI</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Your productivity assistant — start timers, add tasks, check
+                  stats
+                </p>
+              </div>
             </motion.div>
-          ) : (
+
+            <InputBar {...inputBarProps} />
+
             <motion.div
-              key="chat"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="max-w-2xl mx-auto flex flex-col gap-4 p-4 sm:p-6 pb-4"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.25 }}
+              className="flex flex-wrap justify-center gap-2"
             >
-              {messages.map((msg, i) => {
-                const isLast = i === messages.length - 1;
-                if (isLast && showTyping) return null;
-                return (
-                  <MessageBubble
-                    key={msg.id}
-                    message={msg}
-                    isStreaming={isLast && isStreaming}
-                  />
-                );
-              })}
-              <AnimatePresence>{showTyping && <TypingIndicator />}</AnimatePresence>
+              {SUGGESTIONS.map((s) => (
+                <motion.button
+                  key={s}
+                  whileHover={{ y: -2 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => handleSuggestion(s)}
+                  className="border-2 border-border rounded-full px-4 py-1.5 text-sm font-medium bg-white shadow-[2px_2px_0_black] hover:bg-secondary hover:text-secondary-foreground active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-colors cursor-pointer"
+                >
+                  {s}
+                </motion.button>
+              ))}
             </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="chat"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="flex-1 flex flex-col min-h-0 overflow-hidden w-full"
+          >
+            <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto">
+              <div className="max-w-2xl mx-auto flex flex-col gap-4 p-4 sm:p-6 pb-4">
+                {messages.map((msg, i) => {
+                  const isLast = i === messages.length - 1;
+                  if (isLast && showTyping) return null;
+                  return (
+                    <MessageBubble
+                      key={msg.id}
+                      message={msg}
+                      isStreaming={isLast && isStreaming}
+                    />
+                  );
+                })}
+                <AnimatePresence>{showTyping && <TypingIndicator />}</AnimatePresence>
+              </div>
+            </div>
 
-      <div className="shrink-0 sticky bottom-0 z-20 border-t border-border/40 bg-background/95 backdrop-blur-sm supports-[backdrop-filter]:bg-background/85">
-        {hasMessages && (
-          <div className="flex justify-end px-4 pt-2 pb-0">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={clearHistory}
-              className="text-xs text-muted-foreground gap-1"
-            >
-              <Trash2 className="size-3" />
-              Clear chat
-            </Button>
-          </div>
+            <div className="shrink-0 sticky bottom-0 z-20 border-t border-border/40 bg-background/95 backdrop-blur-sm supports-[backdrop-filter]:bg-background/85">
+              <div className="flex justify-end px-4 pt-2 pb-0">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearHistory}
+                  className="text-xs text-muted-foreground gap-1"
+                >
+                  <Trash2 className="size-3" />
+                  Clear chat
+                </Button>
+              </div>
+              <div className="p-4 pt-2">
+                <InputBar {...inputBarProps} />
+              </div>
+            </div>
+          </motion.div>
         )}
-        <div className="p-4 pt-2">
-          <InputBar
-            input={input}
-            disabled={isStreaming}
-            textareaRef={textareaRef}
-            onSend={handleSend}
-            onChange={handleTextareaChange}
-            onKeyDown={handleKeyDown}
-          />
-        </div>
-      </div>
+      </AnimatePresence>
     </div>
   );
 }
