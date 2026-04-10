@@ -40,6 +40,14 @@ function scrollTranscriptToBottom(el: HTMLDivElement | null) {
   });
 }
 
+function isNearBottom(
+  el: HTMLDivElement,
+  thresholdPx: number,
+): boolean {
+  const { scrollTop, scrollHeight, clientHeight } = el;
+  return scrollHeight - scrollTop - clientHeight < thresholdPx;
+}
+
 function InputBar({
   input,
   disabled,
@@ -168,6 +176,8 @@ export default function ChatView() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
+  /** First paint after thread exists: always jump to bottom (incl. restored history). */
+  const threadBootRef = useRef(false);
 
   const hasMessages = messages.length > 0;
   const showTyping =
@@ -177,11 +187,35 @@ export default function ChatView() {
     !messages[messages.length - 1]?.content;
 
   const lastMessageId = messages[messages.length - 1]?.id;
+  const lastMessage = messages[messages.length - 1];
+  /** Changes on every streamed token so layout hooks can pin scroll while at bottom */
+  const lastMessageContentLen = lastMessage?.content?.length ?? 0;
+  const lastMessageWidget = lastMessage?.widget ?? "";
 
   useLayoutEffect(() => {
     if (!hasMessages) return;
-    scrollTranscriptToBottom(scrollRef.current);
-  }, [hasMessages, messages.length, lastMessageId, isStreaming]);
+    const el = scrollRef.current;
+    if (!el) return;
+    if (!threadBootRef.current) {
+      threadBootRef.current = true;
+      scrollTranscriptToBottom(el);
+      return;
+    }
+    if (isNearBottom(el, 180)) {
+      scrollTranscriptToBottom(el);
+    }
+  }, [
+    hasMessages,
+    messages.length,
+    lastMessageId,
+    lastMessageContentLen,
+    lastMessageWidget,
+    showTyping,
+  ]);
+
+  useEffect(() => {
+    if (!hasMessages) threadBootRef.current = false;
+  }, [hasMessages]);
 
   // Framer / flex layout can leave scrollHeight wrong on first paint; re-flush when thread appears.
   useEffect(() => {
@@ -199,24 +233,39 @@ export default function ChatView() {
     const outer = scrollRef.current;
     const inner = transcriptRef.current;
     if (!outer || !inner) return;
-    const stickUntil = Date.now() + 2800;
-    const nearBottom = () => {
-      const { scrollTop, scrollHeight, clientHeight } = outer;
-      return scrollHeight - scrollTop - clientHeight < 100;
-    };
+
+    let stickUntil = Date.now() + 4000;
+
     const ro = new ResizeObserver(() => {
-      if (Date.now() < stickUntil || nearBottom()) {
+      if (Date.now() < stickUntil || isNearBottom(outer, 140)) {
         scrollTranscriptToBottom(outer);
       }
     });
     ro.observe(inner);
-    return () => ro.disconnect();
-  }, [hasMessages]);
+
+    const onScroll = () => {
+      if (isNearBottom(outer, 80)) {
+        stickUntil = Date.now() + 4000;
+      }
+    };
+    outer.addEventListener("scroll", onScroll, { passive: true });
+
+    return () => {
+      ro.disconnect();
+      outer.removeEventListener("scroll", onScroll);
+    };
+  }, [hasMessages, messages.length, lastMessageId]);
 
   useEffect(() => {
     const flush = () => {
-      if (!document.hidden && scrollRef.current && messages.length > 0) {
-        scrollTranscriptToBottom(scrollRef.current);
+      const el = scrollRef.current;
+      if (
+        !document.hidden &&
+        el &&
+        messages.length > 0 &&
+        isNearBottom(el, 220)
+      ) {
+        scrollTranscriptToBottom(el);
       }
     };
     document.addEventListener("visibilitychange", flush);
@@ -353,7 +402,7 @@ export default function ChatView() {
             </div>
             <div
               ref={scrollRef}
-              className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain max-sm:pb-36 sm:pb-4"
+              className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain max-sm:pb-48 sm:pb-4"
             >
               <div
                 ref={transcriptRef}
