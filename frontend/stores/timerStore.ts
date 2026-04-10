@@ -2,6 +2,24 @@ import { create } from "zustand";
 import { toast } from "sonner";
 import { logSession } from "@/lib/stats";
 
+let completionTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
+function clearCompletionTimeout() {
+  if (completionTimeoutId != null) {
+    clearTimeout(completionTimeoutId);
+    completionTimeoutId = null;
+  }
+}
+
+function scheduleCompletionTimeout(targetEndAt: number, tick: (now?: number) => void) {
+  clearCompletionTimeout();
+  const ms = Math.max(0, targetEndAt - Date.now());
+  completionTimeoutId = setTimeout(() => {
+    completionTimeoutId = null;
+    tick(Date.now());
+  }, ms);
+}
+
 export type Phase = "IDLE" | "WORK" | "BREAK_SHORT" | "BREAK_LONG";
 
 type Durations = {
@@ -69,16 +87,19 @@ export const useTimer = create<TimerState>((set, get) => ({
   start: (phase, minutes) => {
     const ms = minutes ? Math.max(0, minutes * 60_000) : get().durations[phase];
     const now = Date.now();
+    const target = now + ms;
     set({
       phase,
       isRunning: true,
       remainingMs: ms,
-      targetEndAt: now + ms,
+      targetEndAt: target,
       phaseStartedAt: now,
     });
+    scheduleCompletionTimeout(target, get().tick);
   },
 
   pause: () => {
+    clearCompletionTimeout();
     const { targetEndAt } = get();
     if (!targetEndAt) return;
     const remaining = Math.max(0, targetEndAt - Date.now());
@@ -90,9 +111,11 @@ export const useTimer = create<TimerState>((set, get) => ({
     if (remainingMs <= 0) return;
     const target = Date.now() + remainingMs;
     set({ isRunning: true, targetEndAt: target, phase });
+    scheduleCompletionTimeout(target, get().tick);
   },
 
   reset: () => {
+    clearCompletionTimeout();
     set({
       phase: "IDLE",
       isRunning: false,
@@ -109,6 +132,7 @@ export const useTimer = create<TimerState>((set, get) => ({
     const diff = targetEndAt - now;
 
     if (diff <= 0) {
+      clearCompletionTimeout();
       const finishedPhase = phase;
       finishListeners.forEach((fn) => {
         try {
@@ -209,6 +233,7 @@ export const useTimer = create<TimerState>((set, get) => ({
   },
 
   setPhasePreview: (phase) => {
+    clearCompletionTimeout();
     const dur = get().durations[phase];
     set({
       phase,
@@ -231,3 +256,16 @@ export const useTimer = create<TimerState>((set, get) => ({
   setBellVolume: (v) =>
     set({ bellVolume: Math.min(1, Math.max(0, Number.isFinite(v) ? v : 0)) }),
 }));
+
+let clientSyncInitialized = false;
+
+/** Run once on the client: sync deadline when tab gains focus (intervals/throttled ticks lag in background). */
+export function initTimerClientSync() {
+  if (typeof window === "undefined" || clientSyncInitialized) return;
+  clientSyncInitialized = true;
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      useTimer.getState().tick();
+    }
+  });
+}

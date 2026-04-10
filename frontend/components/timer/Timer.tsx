@@ -85,28 +85,6 @@ export default function Timer() {
     }
   };
 
-  const playBellSound = () => {
-    const audio = bellAudioRef.current;
-    if (!audio) return;
-
-    audio.currentTime = 0;
-
-    const ctx = audioContextRef.current;
-    if (ctx && ctx.state === "suspended") {
-      ctx.resume().catch(() => {});
-    }
-
-    audio.play().catch(() => {
-      try {
-        const fallback = new Audio("/sounds/Bell.mp3");
-        fallback.volume = Math.min(1, Math.max(0, bellVolume));
-        fallback.play().catch(() => {});
-      } catch {
-        /* exhausted fallbacks */
-      }
-    });
-  };
-
   useEffect(() => {
     const unsub = useTimer.subscribe((state, prevState) => {
       if (
@@ -114,26 +92,16 @@ export default function Timer() {
         prevState.isRunning &&
         !state.isRunning
       ) {
-        const finishedPhase = prevState.phase as Phase;
-
-        playBellSound();
         cardControls.start({
           scale: [1, 1.03, 1],
           transition: { duration: 0.4, ease: "easeInOut" },
         });
-
-        if ("Notification" in window && Notification.permission === "granted") {
-          const label =
-            PHASE_CONFIG[finishedPhase as keyof typeof PHASE_CONFIG]?.label ??
-            finishedPhase;
-          new Notification(`${label} finished!`);
-        }
       }
     });
     return () => {
-      if (typeof unsub === "function") unsub();
+      unsub();
     };
-  }, [cardControls]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cardControls]);
 
   useEffect(() => {
     let worker: Worker | null = null;

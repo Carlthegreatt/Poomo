@@ -82,3 +82,17 @@
 - `frontend/components/kanban/Column.tsx`
 - `frontend/components/kanban/TaskCard.tsx`
 - `frontend/components/kanban/Board.tsx` (overlay sizing, optional)
+
+---
+
+## Addendum: Pomodoro completion in background tabs
+
+**Problem:** High-frequency ticks (worker `setInterval` / main-thread fallback) are throttled in background tabs, so `tick()` may not run until the user focuses the tab—delaying bell, notifications, and phase transitions.
+
+**Approach:**
+
+- Schedule a **one-shot `setTimeout`** for `targetEndAt - Date.now()` whenever the timer **starts** or **resumes**; clear it on **pause**, **reset**, **preview change**, and when a phase **completes** (`diff <= 0`). Prefer deadline-based completion over relying on rapid ticks alone.
+- On **`visibilitychange`** to visible, call **`tick()`** once to reconcile `remainingMs` and catch completions if the one-shot was clamped by the browser.
+- Mount **bell + desktop `Notification`** on **`TimerCompletionBridge`** in the app layout so completion effects run even when `/timer` is not the active route; keep **card pulse** animation on the timer page only.
+
+**Note:** Some browsers restrict **audio** in unfocused tabs; **notifications** (with permission) remain the reliable background signal. Users should enable notifications for best results.
