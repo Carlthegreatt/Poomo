@@ -1,7 +1,7 @@
 import Header from "@/components/header/Header";
 import Sidebar from "@/components/nav/Sidebar";
 import TimerCompletionBridge from "@/components/timer/TimerCompletionBridge";
-import { Toaster } from "sonner";
+import { Toaster } from "@/components/ui/sonner";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -12,7 +12,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {children}
       </main>
-      <Toaster position="top-center" />
+      <Toaster />
     </div>
   );
 }

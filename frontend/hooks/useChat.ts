@@ -38,11 +38,19 @@ export function useChat() {
   const [isStreaming, setIsStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const initializedRef = useRef(false);
+  /** Latest transcript for API calls; state updaters may not run before the next line of an async handler. */
+  const messagesRef = useRef<ChatMessage[]>([]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   useEffect(() => {
     if (!initializedRef.current) {
       initializedRef.current = true;
-      setMessages(loadChatHistory());
+      const loaded = loadChatHistory();
+      setMessages(loaded);
+      messagesRef.current = loaded;
       useCalendar.getState().loadEvents();
       useKanban.getState().loadBoard();
     }
@@ -73,21 +81,22 @@ export function useChat() {
           content: intent.response,
           widget: intent.widget,
         };
-        setMessages((prev) => {
-          const next = [...prev, userMsg, filled];
-          saveChatHistory(next);
-          return next;
-        });
+        const next = [...messagesRef.current, userMsg, filled];
+        setMessages(next);
+        saveChatHistory(next);
+        messagesRef.current = next;
         await intent.execute();
         return;
       }
 
-      let threadForApi: ChatMessage[] = [];
-      setMessages((prev) => {
-        threadForApi = [...prev, userMsg, assistantMsg];
-        saveChatHistory(threadForApi);
-        return threadForApi;
-      });
+      const threadForApi = [
+        ...messagesRef.current,
+        userMsg,
+        assistantMsg,
+      ];
+      setMessages(threadForApi);
+      saveChatHistory(threadForApi);
+      messagesRef.current = threadForApi;
 
       setIsStreaming(true);
       abortRef.current = new AbortController();
@@ -217,6 +226,7 @@ export function useChat() {
 
   const clearHistory = useCallback(() => {
     clearStorage();
+    messagesRef.current = [];
     setMessages([]);
   }, []);
 

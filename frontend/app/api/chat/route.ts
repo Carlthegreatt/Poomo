@@ -1,5 +1,5 @@
 import { createHash, timingSafeEqual } from "node:crypto";
-import { GoogleGenAI } from "@google/genai";
+import { ApiError, GoogleGenAI } from "@google/genai";
 import {
   chatPostBodySchema,
   type ValidatedAppContext,
@@ -26,11 +26,8 @@ function isRateLimited(ip: string): boolean {
   const today = new Date().toISOString().split("T")[0];
 
   const daily = dailyLog.get(ip);
-  if (daily && daily.date === today) {
-    if (daily.count >= DAILY_MAX) return true;
-    daily.count++;
-  } else {
-    dailyLog.set(ip, { date: today, count: 1 });
+  if (daily && daily.date === today && daily.count >= DAILY_MAX) {
+    return true;
   }
 
   const timestamps = burstLog.get(ip) ?? [];
@@ -38,6 +35,12 @@ function isRateLimited(ip: string): boolean {
   if (recent.length >= BURST_MAX) {
     burstLog.set(ip, recent);
     return true;
+  }
+
+  if (daily && daily.date === today) {
+    daily.count++;
+  } else {
+    dailyLog.set(ip, { date: today, count: 1 });
   }
   recent.push(now);
   burstLog.set(ip, recent);
@@ -51,6 +54,14 @@ function isRateLimited(ip: string): boolean {
 
 const GENERIC_ERROR = "I'm temporarily unavailable. Please try again shortly.";
 const MAX_BODY_BYTES = 128_000;
+
+/** Set `POOMO_CHAT_DEBUG=1` in `.env.local` for verbose server logs. */
+function chatDebug(...args: unknown[]) {
+  const on =
+    process.env.POOMO_CHAT_DEBUG === "1" ||
+    process.env.POOMO_CHAT_DEBUG === "true";
+  if (on) console.log("[chat:debug]", ...args);
+}
 const MODELS = [
   "gemini-2.0-flash",
   "gemini-2.5-flash",
@@ -179,6 +190,10 @@ function buildConfirmation(actions: ChatAction[]): string {
 }
 
 function isRateLimitError(error: unknown): boolean {
+  if (error instanceof ApiError) {
+    const s = error.status;
+    if (s === 429 || s === 503) return true;
+  }
   if (!(error instanceof Error)) return false;
   const msg = error.message;
   return (
@@ -198,11 +213,20 @@ async function callGeminiWithFallback(
 
   for (const model of MODELS) {
     try {
-      return await genai.models.generateContent({ ...config, model });
+      chatDebug("calling Gemini", model);
+      const out = await genai.models.generateContent({ ...config, model });
+      chatDebug("Gemini ok", model, {
+        candidates: out.candidates?.length ?? 0,
+      });
+      return out;
     } catch (error: unknown) {
       lastError = error;
       if (!isRateLimitError(error)) throw error;
       console.warn(`[chat] ${model} rate-limited, trying next model`);
+      chatDebug("rate-limit / overload, next model", model, {
+        status: error instanceof ApiError ? error.status : undefined,
+        message: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -293,15 +317,18 @@ type ContentPart = {
 
 export async function POST(req: Request) {
   if (!process.env.GEMINI_API_KEY) {
+    chatDebug("reject: GEMINI_API_KEY missing");
     return Response.json({ error: GENERIC_ERROR }, { status: 503 });
   }
 
   if (!isAuthorizedChatRequest(req)) {
+    chatDebug("reject: unauthorized");
     return Response.json({ error: GENERIC_ERROR }, { status: 401 });
   }
 
   const ip = getClientIp(req);
   if (isRateLimited(ip)) {
+    chatDebug("reject: app rate limit", { ip });
     return Response.json(
       { error: GENERIC_ERROR },
       {
@@ -319,16 +346,25 @@ export async function POST(req: Request) {
   let json: unknown;
   try {
     json = rawBody.text ? JSON.parse(rawBody.text) : null;
-  } catch {
+  } catch (err) {
+    chatDebug("reject: invalid JSON", err);
     return Response.json({ error: GENERIC_ERROR }, { status: 400 });
   }
 
   const parsed = chatPostBodySchema.safeParse(json);
   if (!parsed.success) {
+    chatDebug("reject: body validation", parsed.error.flatten());
     return Response.json({ error: GENERIC_ERROR }, { status: 400 });
   }
 
   const { messages, context: validatedContext } = parsed.data;
+  chatDebug("request", {
+    ip,
+    messageCount: messages.length,
+    lastRole: messages[messages.length - 1]?.role,
+    tasks: validatedContext.tasks.length,
+    events: validatedContext.events.length,
+  });
 
   const encoder = new TextEncoder();
 
@@ -350,6 +386,12 @@ export async function POST(req: Request) {
 
         const candidate = response.candidates?.[0];
         if (!candidate?.content?.parts) {
+          chatDebug("empty candidate", {
+            finishReason: candidate?.finishReason,
+            finishMessage: candidate?.finishMessage,
+            promptFeedback: response.promptFeedback,
+            modelVersion: response.modelVersion,
+          });
           send({ type: "error", message: GENERIC_ERROR });
         } else {
           const parts = candidate.content.parts as ContentPart[];
@@ -402,6 +444,10 @@ export async function POST(req: Request) {
                 send({ type: "text_delta", content: confirmation });
               }
               send({ type: "actions", actions });
+              chatDebug("stream actions", {
+                count: actions.length,
+                tools: actions.map((a) => a.tool),
+              });
             }
 
             if (widgetType) {
@@ -411,6 +457,10 @@ export async function POST(req: Request) {
         }
       } catch (error) {
         console.error("[chat] stream error:", error);
+        chatDebug("stream error detail", {
+          status: error instanceof ApiError ? error.status : undefined,
+          message: error instanceof Error ? error.message : String(error),
+        });
         controller.enqueue(
           encoder.encode(
             `data: ${JSON.stringify({ type: "error", message: GENERIC_ERROR })}\n\n`,

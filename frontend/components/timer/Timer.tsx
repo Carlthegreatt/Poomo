@@ -2,7 +2,13 @@
 
 import { Button } from "@/components/ui/button";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { motion, useAnimationControls } from "framer-motion";
 import { Maximize2, Minimize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -83,6 +89,10 @@ const PHASE_CONFIG = {
   },
 } as const;
 
+/** Timer card width; phase pills + link-task band are sized separately (band matches combined pill width). */
+const TIMER_COLUMN =
+  "w-full max-w-xs sm:max-w-md lg:max-w-lg xl:max-w-xl min-w-0";
+
 export default function Timer() {
   const phase = useTimer((s) => s.phase);
   const isRunning = useTimer((s) => s.isRunning);
@@ -98,6 +108,8 @@ export default function Timer() {
 
   const cardControls = useAnimationControls();
   const fullscreenRef = useRef<HTMLDivElement>(null);
+  const phasePillsRef = useRef<HTMLDivElement>(null);
+  const [pillBandWidthPx, setPillBandWidthPx] = useState<number | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const [selectedPhase, setSelectedPhase] =
@@ -198,6 +210,21 @@ export default function Timer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /** Single primitive dep so the hook’s dependency array length never changes (avoids dev/HMR mismatch warnings). */
+  const pillBandMeasureKey = `${isFullscreen}:${selectedPhase}:${phase}`;
+
+  useLayoutEffect(() => {
+    if (isFullscreen) return;
+    const el = phasePillsRef.current;
+    if (!el) return;
+    const sync = () => setPillBandWidthPx(el.getBoundingClientRect().width);
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(el);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- isFullscreen is encoded in pillBandMeasureKey
+  }, [pillBandMeasureKey]);
+
   const mm = Math.floor(remainingMs / 60000)
     .toString()
     .padStart(2, "0");
@@ -215,26 +242,31 @@ export default function Timer() {
     <main className="w-full">
       <div className="flex flex-col items-center gap-4 sm:gap-6 lg:gap-8 xl:gap-10 w-full box-border">
         {!isFullscreen && (
-          <div className="flex flex-wrap gap-2 sm:gap-3 lg:gap-4 justify-center">
-            {(["WORK", "BREAK_SHORT", "BREAK_LONG"] as const).map((type) => (
-              <motion.div
-                key={type}
-                whileHover={!isRunning ? { y: -2 } : undefined}
-                whileTap={!isRunning ? { scale: 0.95 } : undefined}
-              >
-                <Button
-                  variant="outline"
-                  className={`rounded-full text-xs sm:text-sm lg:text-base px-3 sm:px-4 lg:px-6 py-2 ${getPhaseButtonClass(type)}`}
-                  disabled={isRunning}
-                  onClick={() => {
-                    setSelectedPhase(type);
-                    if (!isRunning) setPhasePreview(type);
-                  }}
+          <div className="w-full flex justify-center min-w-0">
+            <div
+              ref={phasePillsRef}
+              className="inline-flex max-w-full flex-wrap justify-center gap-2 sm:gap-3 lg:gap-4"
+            >
+              {(["WORK", "BREAK_SHORT", "BREAK_LONG"] as const).map((type) => (
+                <motion.div
+                  key={type}
+                  whileHover={!isRunning ? { y: -2 } : undefined}
+                  whileTap={!isRunning ? { scale: 0.95 } : undefined}
                 >
-                  {PHASE_CONFIG[type].label}
-                </Button>
-              </motion.div>
-            ))}
+                  <Button
+                    variant="outline"
+                    className={`rounded-full text-xs sm:text-sm lg:text-base px-3 sm:px-4 lg:px-6 py-2 ${getPhaseButtonClass(type)}`}
+                    disabled={isRunning}
+                    onClick={() => {
+                      setSelectedPhase(type);
+                      if (!isRunning) setPhasePreview(type);
+                    }}
+                  >
+                    {PHASE_CONFIG[type].label}
+                  </Button>
+                </motion.div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -249,7 +281,7 @@ export default function Timer() {
         >
           <motion.div
             animate={cardControls}
-            className="relative flex flex-col items-stretch border-2 border-border bg-white w-full max-w-xs sm:max-w-md lg:max-w-lg xl:max-w-xl rounded-3xl py-10 sm:py-14 lg:py-16 px-6 sm:px-10 lg:px-12 gap-6 sm:gap-8 transition-[box-shadow,color] duration-300"
+            className={`relative flex flex-col items-stretch border-2 border-border bg-white ${TIMER_COLUMN} rounded-3xl py-10 sm:py-14 lg:py-16 px-6 sm:px-10 lg:px-12 gap-6 sm:gap-8 transition-[box-shadow,color] duration-300`}
             style={{
               boxShadow: `6px 6px 0 ${PHASE_CONFIG[activePhase].shadowColor}`,
             }}
@@ -307,7 +339,14 @@ export default function Timer() {
         </div>
 
         {!isFullscreen && (
-          <div className="w-full max-w-xs sm:max-w-md lg:max-w-lg xl:max-w-xl min-w-0 shrink-0">
+          <div
+            className="mx-auto max-w-full min-w-0 shrink-0"
+            style={
+              pillBandWidthPx != null
+                ? { width: pillBandWidthPx }
+                : undefined
+            }
+          >
             <TaskPicker embedInCard />
           </div>
         )}
