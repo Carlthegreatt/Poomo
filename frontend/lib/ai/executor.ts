@@ -2,16 +2,20 @@ import { toast } from "sonner";
 import { useTimer } from "@/stores/timerStore";
 import { useKanban } from "@/stores/kanbanStore";
 import { useCalendar } from "@/stores/calendarStore";
+import { parseChatAction } from "@/lib/ai/chatActionSchema";
 import type { ChatAction } from "@/lib/ai/tools";
 
 export async function executeAction(action: ChatAction): Promise<void> {
-  const { tool, args } = action;
+  const validated = parseChatAction(action);
+  if (!validated) {
+    toast.error("That action could not be run.");
+    return;
+  }
 
   try {
-    switch (tool) {
+    switch (validated.tool) {
       case "start_timer": {
-        const phase = args.phase as "WORK" | "BREAK_SHORT" | "BREAK_LONG";
-        const minutes = args.minutes as number | undefined;
+        const { phase, minutes } = validated.args;
         useTimer.getState().start(phase, minutes);
         toast.success(
           `Timer started: ${phase === "WORK" ? "Focus" : phase === "BREAK_SHORT" ? "Short break" : "Long break"}`,
@@ -34,7 +38,7 @@ export async function executeAction(action: ChatAction): Promise<void> {
         const ordered = [...kanban.columns].sort(
           (a, b) => a.position - b.position,
         );
-        const requested = (args.column as string | undefined)?.trim();
+        const requested = validated.args.column?.trim();
         const column = requested
           ? ordered.find((c) => c.title === requested)
           : ordered[0];
@@ -47,34 +51,36 @@ export async function executeAction(action: ChatAction): Promise<void> {
           return;
         }
 
+        const { title, description, due_date } = validated.args;
         await kanban.addTask(column.id, {
-          title: args.title as string,
-          description: args.description as string | undefined,
-          due_date: args.due_date as string | undefined,
+          title,
+          description: description ?? undefined,
+          due_date: due_date ?? undefined,
         });
-        toast.success(`Task created: ${args.title}`);
+        toast.success(`Task created: ${title}`);
         break;
       }
 
       case "schedule_event": {
+        const { title, description, start, end, all_day } = validated.args;
         await useCalendar.getState().addEvent({
-          title: args.title as string,
-          description: (args.description as string) ?? null,
-          start: args.start as string,
-          end: args.end as string,
-          all_day: (args.all_day as boolean) ?? false,
+          title,
+          description: description ?? null,
+          start,
+          end,
+          all_day: all_day ?? false,
           color: null,
         });
-        toast.success(`Event scheduled: ${args.title}`);
+        toast.success(`Event scheduled: ${title}`);
         break;
       }
 
       default:
-        console.warn(`Unknown action tool: ${tool}`);
+        console.warn(`Unknown action tool: ${(validated as { tool: string }).tool}`);
     }
   } catch (error) {
-    console.error(`Failed to execute action ${tool}:`, error);
-    toast.error(`Failed to execute: ${tool}`);
+    console.error(`Failed to execute action ${validated.tool}:`, error);
+    toast.error(`Failed to execute: ${validated.tool}`);
   }
 }
 

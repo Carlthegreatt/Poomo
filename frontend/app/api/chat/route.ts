@@ -1,4 +1,10 @@
+import { createHash, timingSafeEqual } from "node:crypto";
 import { GoogleGenAI } from "@google/genai";
+import {
+  chatPostBodySchema,
+  type ValidatedAppContext,
+} from "@/lib/ai/chatApiSchema";
+import { parseChatAction } from "@/lib/ai/chatActionSchema";
 import { poomoTools, type ChatAction } from "@/lib/ai/tools";
 
 const genai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY ?? "" });
@@ -10,6 +16,7 @@ const genai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY ?? "" });
 const DAILY_MAX = 35;
 const BURST_WINDOW_MS = 10_000;
 const BURST_MAX = 3;
+const RATE_LIMIT_RETRY_AFTER_SEC = 60;
 
 const dailyLog = new Map<string, { date: string; count: number }>();
 const burstLog = new Map<string, number[]>();
@@ -39,46 +46,10 @@ function isRateLimited(ip: string): boolean {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Types                                                              */
-/* ------------------------------------------------------------------ */
-
-interface AppContext {
-  columns?: string[];
-  tasks: {
-    title: string;
-    column: string;
-    due_date: string | null;
-    description: string | null;
-  }[];
-  events: {
-    title: string;
-    start: string;
-    end: string;
-    all_day: boolean;
-  }[];
-  timer: {
-    phase: string;
-    isRunning: boolean;
-    remainingMs: number;
-  };
-  stats: {
-    todayCount: number;
-    todayMinutes: number;
-    thisWeekSessions: number;
-    thisWeekMinutes: number;
-    totalSessions: number;
-    totalFocusMinutes: number;
-    currentStreak: number;
-    bestStreak: number;
-  };
-}
-
-/* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
 const GENERIC_ERROR = "I'm temporarily unavailable. Please try again shortly.";
-const MAX_MESSAGES = 12;
 const MAX_BODY_BYTES = 128_000;
 const MODELS = [
   "gemini-2.0-flash",
@@ -101,7 +72,7 @@ function formatMs(ms: number): string {
   return `${m}m ${s}s`;
 }
 
-function buildSystemPrompt(ctx: AppContext): string {
+function buildSystemPrompt(ctx: ValidatedAppContext): string {
   const today = new Date().toISOString().split("T")[0];
 
   const timerPhase = PHASE_LABELS[ctx.timer.phase] ?? ctx.timer.phase;
@@ -147,7 +118,7 @@ function buildSystemPrompt(ctx: AppContext): string {
     "",
     "IMPORTANT: The user's full app state is provided below — their timer, kanban columns (including empty ones), tasks, upcoming schedule, and focus stats. You already have this data. When the user asks about their schedule, tasks, board columns, timer, or stats, answer directly from the data below. You do NOT need any tool to read this information.",
     "",
-    "For create_task, the \"column\" argument must be the exact title of one of the kanban columns listed below (match spelling/case).",
+    'For create_task, the "column" argument must be the exact title of one of the kanban columns listed below (match spelling/case).',
     "",
     "Use the available tools ONLY for actions: starting/pausing/resetting the timer, creating tasks, or scheduling new events.",
     "Keep responses short — 1-3 sentences unless the user asks for detail.",
@@ -244,6 +215,78 @@ function getClientIp(req: Request): string {
   return req.headers.get("x-real-ip") ?? "unknown";
 }
 
+function hashToken(value: string): Buffer {
+  return createHash("sha256").update(value, "utf8").digest();
+}
+
+function isAuthorizedChatRequest(req: Request): boolean {
+  const secret = process.env.POOMO_CHAT_API_SECRET;
+  if (!secret) return true;
+
+  const auth = req.headers.get("authorization") ?? "";
+  const prefix = "Bearer ";
+  if (!auth.startsWith(prefix)) return false;
+  const token = auth.slice(prefix.length);
+
+  const a = hashToken(token);
+  const b = hashToken(secret);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
+async function readRequestTextWithLimit(
+  req: Request,
+  maxBytes: number,
+): Promise<{ ok: true; text: string } | { ok: false; reason: "too_large" }> {
+  const lenHeader = req.headers.get("content-length");
+  if (lenHeader) {
+    const n = Number(lenHeader);
+    if (Number.isFinite(n) && n > maxBytes) {
+      return { ok: false, reason: "too_large" };
+    }
+  }
+
+  const stream = req.body;
+  if (!stream) {
+    return { ok: true, text: "" };
+  }
+
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value?.length) continue;
+      total += value.length;
+      if (total > maxBytes) {
+        await reader.cancel();
+        return { ok: false, reason: "too_large" };
+      }
+      chunks.push(value);
+    }
+  } catch {
+    await reader.cancel().catch(() => {});
+    return { ok: false, reason: "too_large" };
+  }
+
+  const merged = new Uint8Array(total);
+  let offset = 0;
+  for (const c of chunks) {
+    merged.set(c, offset);
+    offset += c.length;
+  }
+
+  return { ok: true, text: new TextDecoder().decode(merged) };
+}
+
+type ContentPart = {
+  text?: string;
+  functionCall?: { name: string; args?: Record<string, unknown> };
+};
+
 /* ------------------------------------------------------------------ */
 /*  Route handler                                                      */
 /* ------------------------------------------------------------------ */
@@ -253,40 +296,39 @@ export async function POST(req: Request) {
     return Response.json({ error: GENERIC_ERROR }, { status: 503 });
   }
 
-  const ip = getClientIp(req);
-  if (isRateLimited(ip)) {
-    return Response.json({ error: GENERIC_ERROR }, { status: 503 });
+  if (!isAuthorizedChatRequest(req)) {
+    return Response.json({ error: GENERIC_ERROR }, { status: 401 });
   }
 
-  /* ---------- Input validation ---------- */
+  const ip = getClientIp(req);
+  if (isRateLimited(ip)) {
+    return Response.json(
+      { error: GENERIC_ERROR },
+      {
+        status: 429,
+        headers: { "Retry-After": String(RATE_LIMIT_RETRY_AFTER_SEC) },
+      },
+    );
+  }
 
-  const contentLength = Number(req.headers.get("content-length") ?? 0);
-  if (contentLength > MAX_BODY_BYTES) {
+  const rawBody = await readRequestTextWithLimit(req, MAX_BODY_BYTES);
+  if (!rawBody.ok) {
     return Response.json({ error: GENERIC_ERROR }, { status: 413 });
   }
 
-  let body: { messages?: unknown[]; context?: AppContext };
+  let json: unknown;
   try {
-    body = await req.json();
+    json = rawBody.text ? JSON.parse(rawBody.text) : null;
   } catch {
     return Response.json({ error: GENERIC_ERROR }, { status: 400 });
   }
 
-  const { messages, context } = body;
-
-  if (!Array.isArray(messages) || messages.length === 0) {
+  const parsed = chatPostBodySchema.safeParse(json);
+  if (!parsed.success) {
     return Response.json({ error: GENERIC_ERROR }, { status: 400 });
   }
 
-  if (messages.length > MAX_MESSAGES) {
-    return Response.json({ error: GENERIC_ERROR }, { status: 400 });
-  }
-
-  if (!context || typeof context !== "object") {
-    return Response.json({ error: GENERIC_ERROR }, { status: 400 });
-  }
-
-  /* ---------- Stream response ---------- */
+  const { messages, context: validatedContext } = parsed.data;
 
   const encoder = new TextEncoder();
 
@@ -299,9 +341,9 @@ export async function POST(req: Request) {
       try {
         const response = await callGeminiWithFallback({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          contents: [...messages] as any,
+          contents: messages as any,
           config: {
-            systemInstruction: buildSystemPrompt(context),
+            systemInstruction: buildSystemPrompt(validatedContext),
             tools: [{ functionDeclarations: poomoTools }],
           },
         });
@@ -310,29 +352,45 @@ export async function POST(req: Request) {
         if (!candidate?.content?.parts) {
           send({ type: "error", message: GENERIC_ERROR });
         } else {
-          const parts = candidate.content.parts;
-          const fnCalls = parts.filter(
-            (p: { functionCall?: unknown }) => p.functionCall,
-          );
+          const parts = candidate.content.parts as ContentPart[];
+          const fnCalls = parts.filter((p) => p.functionCall);
+
+          const textFromModel = parts
+            .filter((p) => !p.functionCall)
+            .map((p) => p.text ?? "")
+            .join("");
 
           if (fnCalls.length === 0) {
-            const text = parts
-              .map((p: { text?: string }) => p.text ?? "")
-              .join("");
-            if (text) {
-              send({ type: "text_delta", content: text });
+            if (textFromModel) {
+              send({ type: "text_delta", content: textFromModel });
             }
           } else {
+            if (textFromModel.trim()) {
+              const suffix = /\s$/.test(textFromModel) ? "" : " ";
+              send({
+                type: "text_delta",
+                content: textFromModel + suffix,
+              });
+            }
+
             const actions: ChatAction[] = [];
             let widgetType: string | null = null;
             for (const part of fnCalls) {
-              const { name, args } = part.functionCall as {
-                name: string;
-                args: Record<string, unknown>;
-              };
-              if (MUTATION_TOOLS.has(name)) {
-                actions.push({ tool: name, args });
-              }
+              const fc = part.functionCall;
+              if (!fc?.name) continue;
+              const { name, args } = fc;
+              if (!MUTATION_TOOLS.has(name)) continue;
+
+              const validated = parseChatAction({
+                tool: name,
+                args: (args as Record<string, unknown>) ?? {},
+              });
+              if (!validated) continue;
+
+              actions.push({
+                tool: validated.tool,
+                args: validated.args as unknown as Record<string, unknown>,
+              });
               if (!widgetType && TOOL_TO_WIDGET[name]) {
                 widgetType = TOOL_TO_WIDGET[name];
               }

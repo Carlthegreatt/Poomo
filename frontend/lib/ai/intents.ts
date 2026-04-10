@@ -43,7 +43,8 @@ const ACTION_INTENTS: ActionIntent[] = [
   },
   {
     type: "action",
-    pattern: /\b(pause|stop|hold)\b.*timer|\bpause\b/i,
+    pattern:
+      /\b(pause|stop|hold)\b.{0,120}\btimer\b|\btimer\b.{0,120}\b(pause|stop|hold)\b/i,
     action: { tool: "pause_timer", args: {} },
     response: "Timer paused.",
     widget: "timer",

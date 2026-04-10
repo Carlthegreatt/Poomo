@@ -9,7 +9,6 @@ import {
 } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import TaskCard from "./TaskCard";
-import { GripVertical } from "lucide-react";
 import TaskForm from "./TaskForm";
 import ColumnHeader from "./ColumnHeader";
 import type { KanbanColumn, KanbanTask } from "@/lib/kanban";
@@ -102,19 +101,12 @@ export default function Column({ column, tasks, width, index = 0, onResize }: Co
       style={style}
       className="relative flex-shrink-0 flex flex-col border-2 border-border bg-white rounded-3xl shadow-[4px_4px_0_black] max-h-[calc(100vh-8rem)]"
     >
-      <div className="flex items-start gap-2 p-3 pb-2 border-b border-border/25">
-        <button
-          type="button"
-          aria-label="Drag column to reorder"
-          className="mt-0.5 shrink-0 flex size-10 items-center justify-center rounded-xl border-2 border-border bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground cursor-grab active:cursor-grabbing touch-none select-none shadow-[2px_2px_0_black] active:shadow-none active:translate-x-[1px] active:translate-y-[1px]"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical className="size-5 pointer-events-none" />
-        </button>
-        <div className="flex-1 min-w-0 pt-0.5">
-          <ColumnHeader columnId={column.id} title={column.title} />
-        </div>
+      <div
+        className="p-3 pb-2 cursor-grab active:cursor-grabbing"
+        {...attributes}
+        {...listeners}
+      >
+        <ColumnHeader columnId={column.id} title={column.title} />
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 pb-1 space-y-2">

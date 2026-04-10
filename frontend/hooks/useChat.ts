@@ -15,6 +15,24 @@ import type { ChatAction } from "@/lib/ai/tools";
 import { useCalendar } from "@/stores/calendarStore";
 import { useKanban } from "@/stores/kanbanStore";
 
+const WIDGET_TYPES = new Set<ChatMessage["widget"]>([
+  "timer",
+  "board",
+  "calendar",
+  "stats",
+]);
+
+function chatRequestHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  const token = process.env.NEXT_PUBLIC_POOMO_CHAT_API_SECRET;
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+}
+
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -64,24 +82,24 @@ export function useChat() {
         return;
       }
 
+      let threadForApi: ChatMessage[] = [];
       setMessages((prev) => {
-        const next = [...prev, userMsg, assistantMsg];
-        saveChatHistory(next);
-        return next;
+        threadForApi = [...prev, userMsg, assistantMsg];
+        saveChatHistory(threadForApi);
+        return threadForApi;
       });
 
       setIsStreaming(true);
       abortRef.current = new AbortController();
 
       try {
-        const allMessages = [...messages, userMsg];
-        const recentMessages = allMessages.slice(-8);
+        const recentMessages = threadForApi.slice(-8);
         const geminiMessages = toGeminiMessages(recentMessages);
         const context = await buildContext();
 
         const response = await fetch("/api/chat", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: chatRequestHeaders(),
           body: JSON.stringify({ messages: geminiMessages, context }),
           signal: abortRef.current.signal,
         });
@@ -131,7 +149,10 @@ export function useChat() {
                 });
               } else if (event.type === "actions") {
                 pendingActions = event.actions;
-              } else if (event.type === "widget") {
+              } else if (
+                event.type === "widget" &&
+                WIDGET_TYPES.has(event.widget as ChatMessage["widget"])
+              ) {
                 setMessages((prev) => {
                   const updated = [...prev];
                   const last = updated[updated.length - 1];
@@ -191,7 +212,7 @@ export function useChat() {
         abortRef.current = null;
       }
     },
-    [messages, isStreaming],
+    [isStreaming],
   );
 
   const clearHistory = useCallback(() => {
