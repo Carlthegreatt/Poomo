@@ -76,7 +76,9 @@ export default function Board() {
   }, [loadBoard]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 2, tolerance: 5 },
+    }),
     useSensor(KeyboardSensor)
   );
 
