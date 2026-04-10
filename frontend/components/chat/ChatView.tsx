@@ -167,7 +167,6 @@ export default function ChatView() {
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const transcriptRef = useRef<HTMLDivElement>(null);
 
   const hasMessages = messages.length > 0;
   const showTyping =
@@ -188,29 +187,10 @@ export default function ChatView() {
     if (!hasMessages) return;
     const el = scrollRef.current;
     if (!el) return;
-    const timers = [0, 50, 150, 350, 600].map((ms) =>
+    const timers = [0, 120, 300].map((ms) =>
       window.setTimeout(() => scrollTranscriptToBottom(el), ms)
     );
     return () => timers.forEach(clearTimeout);
-  }, [hasMessages]);
-
-  useEffect(() => {
-    if (!hasMessages) return;
-    const outer = scrollRef.current;
-    const inner = transcriptRef.current;
-    if (!outer || !inner) return;
-    const stickUntil = Date.now() + 2800;
-    const nearBottom = () => {
-      const { scrollTop, scrollHeight, clientHeight } = outer;
-      return scrollHeight - scrollTop - clientHeight < 100;
-    };
-    const ro = new ResizeObserver(() => {
-      if (Date.now() < stickUntil || nearBottom()) {
-        scrollTranscriptToBottom(outer);
-      }
-    });
-    ro.observe(inner);
-    return () => ro.disconnect();
   }, [hasMessages]);
 
   useEffect(() => {
@@ -278,8 +258,7 @@ export default function ChatView() {
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden w-full">
-      {/* "wait" blocked chat from mounting until welcome exited, so scrollRef was null while scroll effects ran */}
-      <AnimatePresence mode="sync">
+      <AnimatePresence mode="wait">
         {!hasMessages ? (
           <motion.div
             key="welcome"
@@ -336,11 +315,8 @@ export default function ChatView() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             className="flex-1 flex flex-col min-h-0 overflow-hidden w-full"
-            onAnimationComplete={() => {
-              scrollTranscriptToBottom(scrollRef.current);
-            }}
           >
-            <div className="shrink-0 flex justify-end px-4 pt-2 pb-1 border-b border-border/30 bg-background/95 z-10">
+            <div className="shrink-0 flex justify-end px-4 pt-2 pb-1 bg-background/95 z-10">
               <Button
                 variant="ghost"
                 size="sm"
@@ -352,10 +328,7 @@ export default function ChatView() {
               </Button>
             </div>
             <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto">
-              <div
-                ref={transcriptRef}
-                className="max-w-2xl mx-auto flex flex-col gap-4 p-4 sm:p-6 pb-4"
-              >
+              <div className="max-w-2xl mx-auto flex flex-col gap-4 p-4 sm:p-6 pb-4">
                 {messages.map((msg, i) => {
                   const isLast = i === messages.length - 1;
                   if (isLast && showTyping) return null;
