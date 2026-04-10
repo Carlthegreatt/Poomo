@@ -103,38 +103,6 @@ export default function Timer() {
     };
   }, [cardControls]);
 
-  useEffect(() => {
-    let worker: Worker | null = null;
-    let intervalId: number | null = null;
-    if (typeof window != "undefined" && "Worker" in window) {
-      try {
-        worker = new Worker("/workers/timer.worker.js");
-        worker.postMessage({ cmd: "start", ms: 250 });
-        worker.onmessage = (e) => {
-          if (e.data?.type === "tick") {
-            useTimer.getState().tick(e.data.now);
-          }
-        };
-      } catch {
-        worker = null;
-      }
-    }
-
-    if (!worker) {
-      intervalId = window.setInterval(() => {
-        useTimer.getState().tick();
-      }, 500);
-    }
-
-    return () => {
-      if (worker) {
-        worker.postMessage({ cmd: "stop" });
-        worker.terminate();
-      }
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, []);
-
   // Keep selected button in sync with current phase when phase changes (e.g., auto-advance or preview)
   useEffect(() => {
     if (phase !== "IDLE") {

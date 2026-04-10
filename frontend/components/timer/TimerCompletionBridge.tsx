@@ -60,6 +60,39 @@ export default function TimerCompletionBridge() {
     initTimerClientSync();
   }, []);
 
+  // Drive tick() app-wide so chat widgets (and any route) stay in sync with the Pomodoro store.
+  useEffect(() => {
+    let worker: Worker | null = null;
+    let intervalId: number | null = null;
+    if (typeof window !== "undefined" && "Worker" in window) {
+      try {
+        worker = new Worker("/workers/timer.worker.js");
+        worker.postMessage({ cmd: "start", ms: 250 });
+        worker.onmessage = (e) => {
+          if (e.data?.type === "tick") {
+            useTimer.getState().tick(e.data.now);
+          }
+        };
+      } catch {
+        worker = null;
+      }
+    }
+
+    if (!worker) {
+      intervalId = window.setInterval(() => {
+        useTimer.getState().tick();
+      }, 500);
+    }
+
+    return () => {
+      if (worker) {
+        worker.postMessage({ cmd: "stop" });
+        worker.terminate();
+      }
+      if (intervalId != null) clearInterval(intervalId);
+    };
+  }, []);
+
   useEffect(() => {
     const unsub = useTimer.subscribe((state, prevState) => {
       if (
