@@ -351,7 +351,10 @@ export default function ChatView() {
                 Clear chat
               </Button>
             </div>
-            <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto">
+            <div
+              ref={scrollRef}
+              className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain max-sm:pb-36 sm:pb-4"
+            >
               <div
                 ref={transcriptRef}
                 className="max-w-2xl mx-auto flex flex-col gap-4 p-4 sm:p-6 pb-4"
@@ -371,8 +374,8 @@ export default function ChatView() {
               </div>
             </div>
 
-            <div className="shrink-0 sticky bottom-0 z-20 border-t border-border/40 bg-background/95 backdrop-blur-sm supports-[backdrop-filter]:bg-background/85">
-              <div className="p-4 pt-2">
+            <div className="shrink-0 z-30 border-t border-border/40 bg-background/95 backdrop-blur-sm supports-[backdrop-filter]:bg-background/85 max-sm:fixed max-sm:inset-x-0 max-sm:bottom-20 max-sm:shadow-[0_-10px_30px_rgba(0,0,0,0.06)] sm:sticky sm:bottom-0">
+              <div className="px-4 pt-2 max-sm:pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-4">
                 <InputBar {...inputBarProps} />
               </div>
             </div>

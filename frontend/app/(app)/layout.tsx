@@ -9,7 +9,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <Header />
       <Sidebar />
       <TimerCompletionBridge />
-      {children}
+      <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        {children}
+      </main>
       <Toaster position="top-center" />
     </div>
   );
