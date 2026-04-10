@@ -31,10 +31,19 @@ export async function executeAction(action: ChatAction): Promise<void> {
 
       case "create_task": {
         const kanban = useKanban.getState();
-        const targetTitle = (args.column as string) ?? "Todo";
-        const column = kanban.columns.find((c) => c.title === targetTitle);
+        const ordered = [...kanban.columns].sort(
+          (a, b) => a.position - b.position,
+        );
+        const requested = (args.column as string | undefined)?.trim();
+        const column = requested
+          ? ordered.find((c) => c.title === requested)
+          : ordered[0];
         if (!column) {
-          toast.error(`Column "${targetTitle}" not found`);
+          toast.error(
+            requested
+              ? `Column "${requested}" not found`
+              : "No kanban columns available",
+          );
           return;
         }
 

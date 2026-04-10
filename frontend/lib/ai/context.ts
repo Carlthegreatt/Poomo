@@ -4,6 +4,8 @@ import { useCalendar } from "@/stores/calendarStore";
 import { useStats } from "@/stores/statsStore";
 
 export interface AppContext {
+  /** Kanban column titles in board order (includes empty columns). */
+  columns: string[];
   tasks: {
     title: string;
     column: string;
@@ -44,13 +46,21 @@ export async function buildContext(): Promise<AppContext> {
     await useCalendar.getState().loadEvents();
     events = useCalendar.getState().events;
   }
-  if (tasks.length === 0 && !useKanban.getState().isLoading) {
-    await useKanban.getState().loadBoard();
+  const kanban = useKanban.getState();
+  if (
+    (tasks.length === 0 || columns.length === 0) &&
+    !kanban.isLoading
+  ) {
+    await kanban.loadBoard();
     ({ tasks, columns } = useKanban.getState());
   }
 
   const timer = useTimer.getState();
   const stats = useStats.getState();
+
+  const columnTitles = [...columns]
+    .sort((a, b) => a.position - b.position)
+    .map((c) => c.title);
 
   const columnMap = new Map(columns.map((c) => [c.id, c.title]));
 
@@ -64,6 +74,7 @@ export async function buildContext(): Promise<AppContext> {
     .slice(0, MAX_CONTEXT_EVENTS);
 
   return {
+    columns: columnTitles,
     tasks: tasks.slice(0, MAX_CONTEXT_TASKS).map((t) => ({
       title: t.title,
       column: columnMap.get(t.column_id) ?? "Unknown",

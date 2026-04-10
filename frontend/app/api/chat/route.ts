@@ -43,6 +43,7 @@ function isRateLimited(ip: string): boolean {
 /* ------------------------------------------------------------------ */
 
 interface AppContext {
+  columns?: string[];
   tasks: {
     title: string;
     column: string;
@@ -108,6 +109,11 @@ function buildSystemPrompt(ctx: AppContext): string {
     ? `Timer: ${timerPhase}, running, ${formatMs(ctx.timer.remainingMs)} remaining`
     : `Timer: ${timerPhase}${ctx.timer.remainingMs > 0 ? `, paused, ${formatMs(ctx.timer.remainingMs)} remaining` : ""}`;
 
+  const columnsLine =
+    ctx.columns && ctx.columns.length > 0
+      ? ctx.columns.join(" → ")
+      : "(column list not provided — use task column names below)";
+
   const tasksLine =
     ctx.tasks.length > 0
       ? ctx.tasks
@@ -139,7 +145,9 @@ function buildSystemPrompt(ctx: AppContext): string {
   return [
     "You are Poomo AI, a friendly and concise productivity assistant inside a Pomodoro timer app called Poomo.",
     "",
-    "IMPORTANT: The user's full app state is provided below — their timer, tasks, upcoming schedule, and focus stats. You already have this data. When the user asks about their schedule, tasks, timer, or stats, answer directly from the data below. You do NOT need any tool to read this information.",
+    "IMPORTANT: The user's full app state is provided below — their timer, kanban columns (including empty ones), tasks, upcoming schedule, and focus stats. You already have this data. When the user asks about their schedule, tasks, board columns, timer, or stats, answer directly from the data below. You do NOT need any tool to read this information.",
+    "",
+    "For create_task, the \"column\" argument must be the exact title of one of the kanban columns listed below (match spelling/case).",
     "",
     "Use the available tools ONLY for actions: starting/pausing/resetting the timer, creating tasks, or scheduling new events.",
     "Keep responses short — 1-3 sentences unless the user asks for detail.",
@@ -147,6 +155,7 @@ function buildSystemPrompt(ctx: AppContext): string {
     "",
     "--- Current App State ---",
     timerLine,
+    `Kanban columns (left-to-right): ${columnsLine}`,
     `Tasks: ${tasksLine}`,
     `Upcoming schedule: ${eventsLine}`,
     `Stats: ${statsLine}`,

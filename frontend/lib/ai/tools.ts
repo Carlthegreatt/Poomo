@@ -53,8 +53,8 @@ export const poomoTools: FunctionDeclaration[] = [
         },
         column: {
           type: Type.STRING,
-          description: "Which kanban column to add the task to. Defaults to Todo.",
-          enum: ["Todo", "Ongoing", "Done"],
+          description:
+            "Exact title of the user's kanban column (see system context: Kanban columns). Defaults to the first column if omitted.",
         },
         due_date: {
           type: Type.STRING,
