@@ -2,6 +2,7 @@ import { useTimer } from "@/stores/timerStore";
 import { useKanban } from "@/stores/kanbanStore";
 import { useCalendar } from "@/stores/calendarStore";
 import { useStats } from "@/stores/statsStore";
+import { fetchNotes } from "@/lib/notes";
 
 export interface AppContext {
   /** Kanban column titles in board order (includes empty columns). */
@@ -33,6 +34,8 @@ export interface AppContext {
     currentStreak: number;
     bestStreak: number;
   };
+  /** Recent note titles so the model can align new notes or suggest organization. */
+  notes: { title: string; updated: string }[];
 }
 
 const MAX_CONTEXT_EVENTS = 10;
@@ -66,6 +69,18 @@ export async function buildContext(): Promise<AppContext> {
 
   const streaks = stats.getStreaks();
   const lifetime = stats.getLifetimeStats();
+
+  const allNotes = await fetchNotes();
+  const notesForContext = [...allNotes]
+    .sort(
+      (a, b) =>
+        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+    )
+    .slice(0, 15)
+    .map((n) => ({
+      title: n.title || "Untitled",
+      updated: n.updated_at.slice(0, 10),
+    }));
 
   const now = new Date().toISOString();
   const upcomingEvents = events
@@ -102,5 +117,6 @@ export async function buildContext(): Promise<AppContext> {
       currentStreak: streaks.current,
       bestStreak: streaks.best,
     },
+    notes: notesForContext,
   };
 }

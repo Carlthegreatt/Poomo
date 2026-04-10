@@ -28,6 +28,13 @@ export const validatedChatActionSchema = z.discriminatedUnion("tool", [
     }),
   }),
   z.object({
+    tool: z.literal("save_note"),
+    args: z.object({
+      title: z.string().min(1).max(500),
+      body: z.string().min(1).max(8000),
+    }),
+  }),
+  z.object({
     tool: z.literal("schedule_event"),
     args: z.object({
       title: z.string().min(1).max(500),

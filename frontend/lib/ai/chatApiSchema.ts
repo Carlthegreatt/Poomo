@@ -38,6 +38,15 @@ export const appContextSchema = z.object({
     currentStreak: z.number().int().nonnegative(),
     bestStreak: z.number().int().nonnegative(),
   }),
+  notes: z
+    .array(
+      z.object({
+        title: z.string().max(500),
+        updated: z.string().max(32),
+      }),
+    )
+    .max(24)
+    .default([]),
 });
 
 const textPartSchema = z.object({

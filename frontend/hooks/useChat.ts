@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import {
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+} from "react";
 import {
   loadChatHistory,
   saveChatHistory,
@@ -20,7 +26,11 @@ const WIDGET_TYPES = new Set<ChatMessage["widget"]>([
   "board",
   "calendar",
   "stats",
+  "notes",
 ]);
+
+/** `navigation.type` stays `"reload"` until the next document load; only blank once per refresh. */
+let chatClearedForThisReloadDocument = false;
 
 function chatRequestHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
@@ -31,6 +41,15 @@ function chatRequestHeaders(): Record<string, string> {
     headers.Authorization = `Bearer ${token}`;
   }
   return headers;
+}
+
+/** True for F5 / address-bar reload; false for first visit and in-app route changes. */
+function isDocumentReload(): boolean {
+  if (typeof performance === "undefined") return false;
+  const nav = performance.getEntriesByType("navigation")[0] as
+    | PerformanceNavigationTiming
+    | undefined;
+  return nav?.type === "reload";
 }
 
 export function useChat() {
@@ -45,12 +64,28 @@ export function useChat() {
     messagesRef.current = messages;
   }, [messages]);
 
-  useEffect(() => {
+  // useLayoutEffect so history is applied before the first paint. useEffect left
+  // the first frame at messages=[] → scroll pinned to an empty/welcome layout,
+  // then content appeared at scrollTop 0 (top of the real transcript).
+  useLayoutEffect(() => {
     if (!initializedRef.current) {
       initializedRef.current = true;
-      const loaded = loadChatHistory();
-      setMessages(loaded);
-      messagesRef.current = loaded;
+      if (isDocumentReload()) {
+        if (!chatClearedForThisReloadDocument) {
+          chatClearedForThisReloadDocument = true;
+          clearStorage();
+          setMessages([]);
+          messagesRef.current = [];
+        } else {
+          const loaded = loadChatHistory();
+          setMessages(loaded);
+          messagesRef.current = loaded;
+        }
+      } else {
+        const loaded = loadChatHistory();
+        setMessages(loaded);
+        messagesRef.current = loaded;
+      }
       useCalendar.getState().loadEvents();
       useKanban.getState().loadBoard();
     }

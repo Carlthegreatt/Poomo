@@ -65,6 +65,27 @@ export const poomoTools: FunctionDeclaration[] = [
     },
   },
   {
+    name: "save_note",
+    description:
+      "Save content to the user's Notes tab. Use when they ask to take a note, remember something, jot down an idea, or capture thoughts. Use a clear short title and put the full text in body (plain text; line breaks allowed).",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        title: {
+          type: Type.STRING,
+          description:
+            "Short note title (e.g. the main idea in a few words).",
+        },
+        body: {
+          type: Type.STRING,
+          description:
+            "Full note content: the idea, bullets, or organized text the user wants kept.",
+        },
+      },
+      required: ["title", "body"],
+    },
+  },
+  {
     name: "schedule_event",
     description: "Create a new calendar event",
     parameters: {

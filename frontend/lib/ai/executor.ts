@@ -4,6 +4,29 @@ import { useKanban } from "@/stores/kanbanStore";
 import { useCalendar } from "@/stores/calendarStore";
 import { parseChatAction } from "@/lib/ai/chatActionSchema";
 import type { ChatAction } from "@/lib/ai/tools";
+import { createNote as apiCreateNote } from "@/lib/notes";
+import { useNotes } from "@/stores/notesStore";
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/** Store note body as simple HTML for the rich-text editor. */
+function plainTextToNoteHtml(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return "<p></p>";
+  return trimmed
+    .split(/\n{2,}/)
+    .map((block) => {
+      const withBreaks = escapeHtml(block).replace(/\n/g, "<br/>");
+      return `<p>${withBreaks}</p>`;
+    })
+    .join("");
+}
 
 export async function executeAction(action: ChatAction): Promise<void> {
   const validated = parseChatAction(action);
@@ -72,6 +95,19 @@ export async function executeAction(action: ChatAction): Promise<void> {
           color: null,
         });
         toast.success(`Event scheduled: ${title}`);
+        break;
+      }
+
+      case "save_note": {
+        const { title, body } = validated.args;
+        await apiCreateNote({
+          title: title.trim(),
+          content: plainTextToNoteHtml(body),
+          color: null,
+          pinned: false,
+        });
+        await useNotes.getState().loadNotes();
+        toast.success(`Saved to Notes: ${title.trim()}`);
         break;
       }
 

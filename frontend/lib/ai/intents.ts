@@ -18,6 +18,105 @@ interface ActionIntent {
   widget: WidgetType;
 }
 
+const SCHEDULE_CREATE_PATTERNS: {
+  re: RegExp;
+  day: "today" | "tomorrow";
+}[] = [
+  {
+    re: /^\s*schedule\s+(?:(?:a|an|the)\s+)?(.+?)\s+tomorrow\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i,
+    day: "tomorrow",
+  },
+  {
+    re: /^\s*schedule\s+(?:(?:a|an|the)\s+)?(.+?)\s+today\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i,
+    day: "today",
+  },
+];
+
+function titleCasePhrase(s: string): string {
+  const t = s.trim();
+  if (!t) return "Event";
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+/** "Schedule a study session tomorrow at 3pm" → create event (not "show my schedule"). */
+function matchScheduleCreation(text: string): IntentMatch | null {
+  const normalized = text.trim();
+  for (const { re, day } of SCHEDULE_CREATE_PATTERNS) {
+    const m = normalized.match(re);
+    if (!m) continue;
+    const titleRaw = m[1]?.trim() ?? "Event";
+    let hour = parseInt(m[2] ?? "0", 10);
+    const minute = m[3] ? parseInt(m[3], 10) : 0;
+    const ap = (m[4] ?? "pm").toLowerCase();
+    if (ap === "pm" && hour < 12) hour += 12;
+    if (ap === "am" && hour === 12) hour = 0;
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) continue;
+
+    const start = new Date();
+    if (day === "tomorrow") {
+      start.setDate(start.getDate() + 1);
+    }
+    start.setHours(hour, minute, 0, 0);
+
+    const end = new Date(start.getTime() + 60 * 60 * 1000);
+    const title = titleCasePhrase(titleRaw);
+
+    return {
+      response: `Scheduled “${title}” for ${start.toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} (1 hour).`,
+      execute: () =>
+        executeAction({
+          tool: "schedule_event",
+          args: {
+            title,
+            start: start.toISOString(),
+            end: end.toISOString(),
+          },
+        }),
+      widget: "calendar",
+    };
+  }
+  return null;
+}
+
+function deriveNoteTitle(body: string): string {
+  const first = body.trim().split(/\n/)[0]?.trim() ?? "";
+  const dot = first.search(/[.!?](\s|$)/);
+  const sentence = dot === -1 ? first : first.slice(0, dot + 1).trim();
+  const base = sentence || first || "Note";
+  return base.length > 72 ? `${base.slice(0, 69)}…` : base;
+}
+
+const SAVE_NOTE_PATTERNS: RegExp[] = [
+  /^\s*take\s+a\s+note\s+(?:of|that)\s*[:\s]*([\s\S]+)$/i,
+  /^\s*take\s+note\s+(?:of|that)\s*[:\s]*([\s\S]+)$/i,
+  /^\s*note\s+(?:this|down|that)\s*[:\s]*([\s\S]+)$/i,
+  /^\s*(?:remember|jot\s+down)\s+(?:that\s+|this\s*)?[:\s]*([\s\S]+)$/i,
+  /^\s*save\s+(?:this\s+)?(?:to\s+)?notes?\s*[:\s]*([\s\S]+)$/i,
+  /^\s*write\s+down\s*[:\s]*([\s\S]+)$/i,
+  /^\s*capture\s+(?:this\s+)?idea\s*[:\s]*([\s\S]+)$/i,
+];
+
+/** Natural phrasing → save_note (same as chat tool; no API). */
+function matchSaveNoteIntent(text: string): IntentMatch | null {
+  const normalized = text.trim();
+  for (const re of SAVE_NOTE_PATTERNS) {
+    const m = normalized.match(re);
+    const raw = m?.[1]?.trim();
+    if (!raw) continue;
+    const title = deriveNoteTitle(raw);
+    return {
+      response: `Saved “${title}” to your Notes. Open the Notes tab to edit, pin, or reorder it.`,
+      execute: () =>
+        executeAction({
+          tool: "save_note",
+          args: { title, body: raw },
+        }),
+      widget: "notes",
+    };
+  }
+  return null;
+}
+
 const ACTION_INTENTS: ActionIntent[] = [
   {
     type: "action",
@@ -89,21 +188,40 @@ function resolveSchedule(): string {
   const upcoming = events
     .filter((e) => e.end >= now)
     .sort((a, b) => a.start.localeCompare(b.start))
-    .slice(0, 5);
+    .slice(0, 15);
 
   if (upcoming.length === 0) return "You have no upcoming events on your schedule.";
 
-  const lines = upcoming.map((e) => {
+  const dayOrder: string[] = [];
+  const byDay = new Map<string, typeof upcoming>();
+  for (const e of upcoming) {
     const start = new Date(e.start);
-    const end = new Date(e.end);
-    const datePart = start.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-    const timePart = e.all_day
-      ? "all day"
-      : `${start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} – ${end.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
-    return `• ${e.title} — ${datePart}, ${timePart}`;
-  });
+    const dayKey = start.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "short",
+      day: "numeric",
+    });
+    if (!byDay.has(dayKey)) dayOrder.push(dayKey);
+    const list = byDay.get(dayKey) ?? [];
+    list.push(e);
+    byDay.set(dayKey, list);
+  }
 
-  return `Here's your upcoming schedule:\n${lines.join("\n")}`;
+  const blocks: string[] = ["Here's your upcoming schedule:\n"];
+  for (const day of dayOrder) {
+    const dayEvents = byDay.get(day) ?? [];
+    blocks.push(`${day}`);
+    for (const e of dayEvents) {
+      const start = new Date(e.start);
+      const end = new Date(e.end);
+      const timePart = e.all_day
+        ? "All day"
+        : `${start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} – ${end.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+      blocks.push(`• ${timePart} — ${e.title}`);
+    }
+    blocks.push("");
+  }
+  return blocks.join("\n").trimEnd();
 }
 
 function resolveTasks(): string {
@@ -119,11 +237,15 @@ function resolveTasks(): string {
     grouped.set(col, list);
   }
 
-  const lines: string[] = [];
+  const lines: string[] = ["Here are your tasks:\n"];
   for (const [col, items] of grouped) {
-    lines.push(`${col}: ${items.join(", ")}`);
+    lines.push(`${col}`);
+    for (const title of items) {
+      lines.push(`• ${title}`);
+    }
+    lines.push("");
   }
-  return `Here are your tasks:\n${lines.join("\n")}`;
+  return lines.join("\n").trimEnd();
 }
 
 function resolveTimerStatus(): string {
@@ -143,16 +265,18 @@ function resolveStats(): string {
   const streaks = stats.getStreaks();
 
   return [
-    `Today: ${today} session${today !== 1 ? "s" : ""}, ${todayMin} minutes focused.`,
-    `This week: ${lifetime.thisWeekSessions} sessions, ${lifetime.thisWeekMinutes} minutes.`,
-    `Streak: ${streaks.current} day${streaks.current !== 1 ? "s" : ""} (best: ${streaks.best}).`,
+    "Here's a quick stats snapshot:\n",
+    `• Today: ${today} session${today !== 1 ? "s" : ""}, ${todayMin} minutes focused.`,
+    `• This week: ${lifetime.thisWeekSessions} sessions, ${lifetime.thisWeekMinutes} minutes.`,
+    `• Streak: ${streaks.current} day${streaks.current !== 1 ? "s" : ""} (best: ${streaks.best}).`,
   ].join("\n");
 }
 
 const READ_INTENTS: ReadIntent[] = [
   {
     type: "read",
-    pattern: /\b(schedule|calendar|event|upcoming|planned)\b/i,
+    pattern:
+      /\b(what'?s|whats|show|list|check|see|view|tell me)\b.{0,100}\b(on my\s+)?(schedule|calendar|event|upcoming)|\b(my|the)\s+(schedule|calendar)\b|\bupcoming\s+(event|events|appointment)|\bcalendar\b.{0,40}\?/i,
     resolve: resolveSchedule,
     widget: "calendar",
   },
@@ -188,6 +312,12 @@ export interface IntentMatch {
 
 export function matchIntent(text: string): IntentMatch | null {
   const normalized = text.trim();
+
+  const scheduleCreate = matchScheduleCreation(normalized);
+  if (scheduleCreate) return scheduleCreate;
+
+  const saveNote = matchSaveNoteIntent(normalized);
+  if (saveNote) return saveNote;
 
   for (const intent of ACTION_INTENTS) {
     if (intent.pattern.test(normalized)) {

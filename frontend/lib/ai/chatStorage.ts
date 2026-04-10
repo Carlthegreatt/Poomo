@@ -1,7 +1,7 @@
 import { readJSON, writeJSON } from "@/lib/storage";
 import { STORAGE_KEYS } from "@/lib/constants";
 
-export type WidgetType = "timer" | "board" | "calendar" | "stats";
+export type WidgetType = "timer" | "board" | "calendar" | "stats" | "notes";
 
 export interface ChatMessage {
   id: string;

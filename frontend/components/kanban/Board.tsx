@@ -116,21 +116,27 @@ export default function Board() {
         return;
       }
 
-      if (activeColId !== overColId) {
-        const colTasks = tasks
-          .filter((t) => t.column_id === overColId)
-          .sort((a, b) => a.position - b.position);
+      if (activeColId === overColId) return;
 
-        let newIndex = colTasks.length;
-        if (overData?.type === "task") {
-          const overIdx = colTasks.findIndex((t) => t.id === over.id);
-          if (overIdx !== -1) newIndex = overIdx;
-        }
+      // Read current tasks from the store to avoid stale closure
+      const currentTasks = useKanban.getState().tasks;
+      const task = currentTasks.find((t) => t.id === active.id);
+      // Guard: if already moved to this column, don't move again
+      if (!task || task.column_id === overColId) return;
 
-        moveTask(active.id as string, overColId, newIndex);
+      const colTasks = currentTasks
+        .filter((t) => t.column_id === overColId)
+        .sort((a, b) => a.position - b.position);
+
+      let newIndex = colTasks.length;
+      if (overData?.type === "task") {
+        const overIdx = colTasks.findIndex((t) => t.id === over.id);
+        if (overIdx !== -1) newIndex = overIdx;
       }
+
+      moveTask(active.id as string, overColId, newIndex);
     },
-    [tasks, moveTask]
+    [moveTask],
   );
 
   const handleDragEnd = useCallback(

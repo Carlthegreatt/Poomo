@@ -111,10 +111,13 @@ function buildSystemPrompt(ctx: ValidatedAppContext): string {
     ctx.events.length > 0
       ? ctx.events
           .map((e) => {
-            if (e.all_day) return `${e.title} (all day)`;
-            return `${e.title}: ${e.start} – ${e.end}`;
+            if (e.all_day) {
+              const d = e.start.slice(0, 10);
+              return `• ${e.title} (all day, ${d})`;
+            }
+            return `• ${e.title}: ${e.start} → ${e.end}`;
           })
-          .join(", ")
+          .join("\n")
       : "None";
 
   const statsLine = [
@@ -124,14 +127,21 @@ function buildSystemPrompt(ctx: ValidatedAppContext): string {
     `streak: ${ctx.stats.currentStreak}d`,
   ].join(", ");
 
+  const notesLine =
+    ctx.notes.length > 0
+      ? ctx.notes.map((n) => `• ${n.title} (updated ${n.updated})`).join("\n")
+      : "None";
+
   return [
     "You are Poomo AI, a friendly and concise productivity assistant inside a Pomodoro timer app called Poomo.",
     "",
-    "IMPORTANT: The user's full app state is provided below — their timer, kanban columns (including empty ones), tasks, upcoming schedule, and focus stats. You already have this data. When the user asks about their schedule, tasks, board columns, timer, or stats, answer directly from the data below. You do NOT need any tool to read this information.",
+    "IMPORTANT: The user's full app state is provided below — their timer, kanban columns (including empty ones), tasks, upcoming schedule, focus stats, and recent note titles. You already have this data. When the user asks about their schedule, tasks, board, timer, stats, or existing notes, answer from the data below. You do NOT need any tool to read that information.",
+    "",
+    "FORMATTING: When listing schedules, tasks, or several items, use a one-line intro, then one bullet per item (•) with each item on its own line. Group calendar items by day with the day as a plain heading line (no bullet). Do not merge list items into a single long paragraph.",
     "",
     'For create_task, the "column" argument must be the exact title of one of the kanban columns listed below (match spelling/case).',
     "",
-    "Use the available tools ONLY for actions: starting/pausing/resetting the timer, creating tasks, or scheduling new events.",
+    "Use the available tools ONLY for actions: starting/pausing/resetting the timer, creating tasks, scheduling new events, or saving notes (save_note). When the user wants to capture an idea, reminder, or 'take a note', call save_note with a short title and the full body text. You may structure the body with line breaks or bullets to organize ideas. Prefer titles that match or complement existing note themes when relevant.",
     "Keep responses short — 1-3 sentences unless the user asks for detail.",
     `Today's date is ${today}.`,
     "",
@@ -139,8 +149,12 @@ function buildSystemPrompt(ctx: ValidatedAppContext): string {
     timerLine,
     `Kanban columns (left-to-right): ${columnsLine}`,
     `Tasks: ${tasksLine}`,
-    `Upcoming schedule: ${eventsLine}`,
+    ...(ctx.events.length > 0
+      ? ["Upcoming schedule (one event per line):", eventsLine]
+      : ["Upcoming schedule: None"]),
     `Stats: ${statsLine}`,
+    "Recent notes (titles, most recently updated first):",
+    notesLine,
   ].join("\n");
 }
 
@@ -150,6 +164,7 @@ const MUTATION_TOOLS = new Set([
   "reset_timer",
   "create_task",
   "schedule_event",
+  "save_note",
 ]);
 
 const TOOL_TO_WIDGET: Record<string, string> = {
@@ -158,6 +173,7 @@ const TOOL_TO_WIDGET: Record<string, string> = {
   reset_timer: "timer",
   create_task: "board",
   schedule_event: "calendar",
+  save_note: "notes",
 };
 
 function buildConfirmation(actions: ChatAction[]): string {
@@ -181,6 +197,8 @@ function buildConfirmation(actions: ChatAction[]): string {
           return `Task created: ${args.title}.`;
         case "schedule_event":
           return `Event scheduled: ${args.title}.`;
+        case "save_note":
+          return `Saved to Notes: ${args.title}.`;
         default:
           return "";
       }

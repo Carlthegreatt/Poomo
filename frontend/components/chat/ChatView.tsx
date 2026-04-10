@@ -16,15 +16,20 @@ import { TimerWidget } from "@/components/chat/widgets/TimerWidget";
 import { BoardWidget } from "@/components/chat/widgets/BoardWidget";
 import { CalendarWidget } from "@/components/chat/widgets/CalendarWidget";
 import { StatsWidget } from "@/components/chat/widgets/StatsWidget";
+import { NotesWidget } from "@/components/chat/widgets/NotesWidget";
 import type { WidgetType } from "@/lib/ai/chatStorage";
 
 const SUGGESTIONS = [
   "Start a focus session",
   "What's on my todo list?",
   "Schedule a study session tomorrow at 3pm",
+  "Take a note of my idea: weekly review on Sundays",
 ];
 
-function scrollTranscriptToBottom(el: HTMLDivElement | null) {
+function scrollTranscriptToBottom(
+  el: HTMLDivElement | null,
+  mode: "once" | "settle" = "once",
+) {
   if (!el) return;
   const apply = () => {
     try {
@@ -34,16 +39,15 @@ function scrollTranscriptToBottom(el: HTMLDivElement | null) {
     }
   };
   apply();
-  queueMicrotask(apply);
-  requestAnimationFrame(() => {
-    requestAnimationFrame(apply);
-  });
+  if (mode === "settle") {
+    queueMicrotask(apply);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(apply);
+    });
+  }
 }
 
-function isNearBottom(
-  el: HTMLDivElement,
-  thresholdPx: number,
-): boolean {
+function isNearBottom(el: HTMLDivElement, thresholdPx: number): boolean {
   const { scrollTop, scrollHeight, clientHeight } = el;
   return scrollHeight - scrollTop - clientHeight < thresholdPx;
 }
@@ -102,6 +106,8 @@ function WidgetRenderer({ type }: { type: WidgetType }) {
       return <CalendarWidget />;
     case "stats":
       return <StatsWidget />;
+    case "notes":
+      return <NotesWidget />;
     default:
       return null;
   }
@@ -110,22 +116,25 @@ function WidgetRenderer({ type }: { type: WidgetType }) {
 function MessageBubble({
   message,
   isStreaming,
+  animateEnter,
 }: {
   message: ChatMessage;
   isStreaming: boolean;
+  /** Only the latest bubble animates; restored threads stay static (no scroll fight). */
+  animateEnter: boolean;
 }) {
   const isUser = message.role === "user";
   const showCursor = !isUser && isStreaming;
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10, scale: 0.97 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.2, ease: "easeOut" }}
+      initial={animateEnter ? { opacity: 0 } : false}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.18, ease: [0.25, 0.46, 0.45, 0.94] }}
       className={`flex ${isUser ? "justify-end" : "justify-start"}`}
     >
       <div
-        className={`max-w-[75%] rounded-2xl border-2 border-border px-4 py-2.5 text-sm leading-relaxed shadow-[2px_2px_0_black] ${
+        className={`max-w-[75%] rounded-2xl border-2 border-border px-4 py-2.5 text-sm leading-relaxed shadow-[2px_2px_0_black] whitespace-pre-wrap break-words ${
           isUser ? "bg-primary text-white" : "bg-white text-foreground"
         }`}
       >
@@ -134,7 +143,11 @@ function MessageBubble({
           <motion.span
             className="inline-block w-0.5 h-4 bg-foreground ml-0.5 align-text-bottom"
             animate={{ opacity: [1, 1, 0, 0] }}
-            transition={{ duration: 1, repeat: Infinity, times: [0, 0.5, 0.5, 1] }}
+            transition={{
+              duration: 1,
+              repeat: Infinity,
+              times: [0, 0.5, 0.5, 1],
+            }}
           />
         )}
         {!isUser && message.widget && <WidgetRenderer type={message.widget} />}
@@ -146,9 +159,10 @@ function MessageBubble({
 function TypingIndicator() {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -4 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.15 }}
       className="flex justify-start"
     >
       <div className="rounded-2xl border-2 border-border px-4 py-3 bg-white shadow-[2px_2px_0_black] flex items-center gap-1">
@@ -176,8 +190,8 @@ export default function ChatView() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
-  /** First paint after thread exists: always jump to bottom (incl. restored history). */
-  const threadBootRef = useRef(false);
+  const messagesCountRef = useRef(0);
+  messagesCountRef.current = messages.length;
 
   const hasMessages = messages.length > 0;
   const showTyping =
@@ -192,17 +206,41 @@ export default function ChatView() {
   const lastMessageContentLen = lastMessage?.content?.length ?? 0;
   const lastMessageWidget = lastMessage?.widget ?? "";
 
+  // ── Scroll management ──
+  const bootScrollRef = useRef(true);
+  /** False while welcome→chat opacity runs; avoids scroll fighting motion (jitter). */
+  const transcriptPanelStableRef = useRef(false);
+  /** Previous commit's last message id — used to animate only newly appended bubbles. */
+  const prevLastMessageIdRef = useRef<string | undefined>(undefined);
+
   useLayoutEffect(() => {
-    if (!hasMessages) return;
-    const el = scrollRef.current;
-    if (!el) return;
-    if (!threadBootRef.current) {
-      threadBootRef.current = true;
-      scrollTranscriptToBottom(el);
+    if (messages.length === 0) {
+      prevLastMessageIdRef.current = undefined;
+    } else {
+      prevLastMessageIdRef.current = messages[messages.length - 1]?.id;
+    }
+  }, [messages]);
+
+  useLayoutEffect(() => {
+    if (!hasMessages) {
+      bootScrollRef.current = true;
+      transcriptPanelStableRef.current = false;
       return;
     }
-    if (isNearBottom(el, 180)) {
-      scrollTranscriptToBottom(el);
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const allowPin = transcriptPanelStableRef.current || isStreaming;
+    if (!allowPin) return;
+
+    if (bootScrollRef.current || isNearBottom(el, 180)) {
+      scrollTranscriptToBottom(
+        el,
+        transcriptPanelStableRef.current ? "settle" : "once",
+      );
+      if (transcriptPanelStableRef.current) {
+        bootScrollRef.current = false;
+      }
     }
   }, [
     hasMessages,
@@ -211,72 +249,32 @@ export default function ChatView() {
     lastMessageContentLen,
     lastMessageWidget,
     showTyping,
+    isStreaming,
   ]);
 
-  useEffect(() => {
-    if (!hasMessages) threadBootRef.current = false;
-  }, [hasMessages]);
-
-  // Framer / flex layout can leave scrollHeight wrong on first paint; re-flush when thread appears.
-  useEffect(() => {
-    if (!hasMessages) return;
-    const el = scrollRef.current;
-    if (!el) return;
-    const timers = [0, 50, 150, 350, 600].map((ms) =>
-      window.setTimeout(() => scrollTranscriptToBottom(el), ms)
-    );
-    return () => timers.forEach(clearTimeout);
-  }, [hasMessages]);
-
+  // ResizeObserver: coalesce to rAF; skip until panel enter finishes (same jitter source).
   useEffect(() => {
     if (!hasMessages) return;
     const outer = scrollRef.current;
     const inner = transcriptRef.current;
     if (!outer || !inner) return;
 
-    let stickUntil = Date.now() + 4000;
-
+    let roRaf = 0;
     const ro = new ResizeObserver(() => {
-      if (Date.now() < stickUntil || isNearBottom(outer, 140)) {
-        scrollTranscriptToBottom(outer);
-      }
+      cancelAnimationFrame(roRaf);
+      roRaf = requestAnimationFrame(() => {
+        if (!transcriptPanelStableRef.current) return;
+        if (isNearBottom(outer, 140)) {
+          scrollTranscriptToBottom(outer, "once");
+        }
+      });
     });
     ro.observe(inner);
-
-    const onScroll = () => {
-      if (isNearBottom(outer, 80)) {
-        stickUntil = Date.now() + 4000;
-      }
-    };
-    outer.addEventListener("scroll", onScroll, { passive: true });
-
     return () => {
+      cancelAnimationFrame(roRaf);
       ro.disconnect();
-      outer.removeEventListener("scroll", onScroll);
     };
-  }, [hasMessages, messages.length, lastMessageId]);
-
-  useEffect(() => {
-    const flush = () => {
-      const el = scrollRef.current;
-      if (
-        !document.hidden &&
-        el &&
-        messages.length > 0 &&
-        isNearBottom(el, 220)
-      ) {
-        scrollTranscriptToBottom(el);
-      }
-    };
-    document.addEventListener("visibilitychange", flush);
-    window.addEventListener("focus", flush);
-    window.addEventListener("pageshow", flush);
-    return () => {
-      document.removeEventListener("visibilitychange", flush);
-      window.removeEventListener("focus", flush);
-      window.removeEventListener("pageshow", flush);
-    };
-  }, [messages.length]);
+  }, [hasMessages, messages.length]);
 
   const handleSend = useCallback(() => {
     const trimmed = input.trim();
@@ -316,6 +314,13 @@ export default function ChatView() {
     [sendMessage],
   );
 
+  const handleChatPanelAnimationComplete = useCallback(() => {
+    if (messagesCountRef.current === 0) return;
+    transcriptPanelStableRef.current = true;
+    scrollTranscriptToBottom(scrollRef.current, "settle");
+    bootScrollRef.current = false;
+  }, []);
+
   const inputBarProps = {
     input,
     disabled: isStreaming,
@@ -327,15 +332,14 @@ export default function ChatView() {
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden w-full">
-      {/* sync: chat mounts with scrollRef immediately (wait delayed mount and broke scroll-to-bottom) */}
-      <AnimatePresence mode="sync">
+      <AnimatePresence mode="wait">
         {!hasMessages ? (
           <motion.div
             key="welcome"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.2 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18, ease: [0.25, 0.46, 0.45, 0.94] }}
             className="flex-1 flex flex-col items-center justify-center min-h-0 px-4 py-8 gap-8 overflow-y-auto"
           >
             <motion.div
@@ -383,11 +387,9 @@ export default function ChatView() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
+            onAnimationComplete={handleChatPanelAnimationComplete}
             className="flex-1 flex flex-col min-h-0 overflow-hidden w-full"
-            onAnimationComplete={() => {
-              scrollTranscriptToBottom(scrollRef.current);
-            }}
           >
             <div className="shrink-0 flex justify-end px-4 pt-2 pb-1 bg-background/95 z-10">
               <Button
@@ -402,29 +404,36 @@ export default function ChatView() {
             </div>
             <div
               ref={scrollRef}
-              className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain max-sm:pb-48 sm:pb-4"
+              className="flex min-h-0 flex-1 flex-col justify-end overflow-y-auto overscroll-y-contain max-sm:pb-48 sm:pb-36"
             >
               <div
                 ref={transcriptRef}
-                className="max-w-2xl mx-auto flex flex-col gap-4 p-4 sm:p-6 pb-4"
+                className="mx-auto flex w-full max-w-2xl shrink-0 flex-col gap-4 p-4 sm:p-6 pb-4"
               >
                 {messages.map((msg, i) => {
                   const isLast = i === messages.length - 1;
                   if (isLast && showTyping) return null;
+                  const prevLastId = prevLastMessageIdRef.current;
+                  const animateEnter =
+                    isLast && prevLastId !== undefined && prevLastId !== msg.id;
                   return (
                     <MessageBubble
                       key={msg.id}
                       message={msg}
                       isStreaming={isLast && isStreaming}
+                      animateEnter={animateEnter}
                     />
                   );
                 })}
-                <AnimatePresence>{showTyping && <TypingIndicator />}</AnimatePresence>
+                <AnimatePresence>
+                  {showTyping && <TypingIndicator />}
+                </AnimatePresence>
               </div>
             </div>
 
-            <div className="shrink-0 z-30 border-t border-border/40 bg-background/95 backdrop-blur-sm supports-[backdrop-filter]:bg-background/85 max-sm:fixed max-sm:inset-x-0 max-sm:bottom-20 max-sm:shadow-[0_-10px_30px_rgba(0,0,0,0.06)] sm:sticky sm:bottom-0">
-              <div className="px-4 pt-2 max-sm:pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-4">
+            {/* Mobile: flush bottom + solid bg so the dock runs under the floating nav (z-40) — no blur seam */}
+            <div className="pointer-events-none fixed inset-x-0 z-30 max-sm:bottom-0 sm:bottom-6 sm:left-16">
+              <div className="pointer-events-auto mx-auto w-full max-w-2xl px-4 pt-3 max-sm:border-t max-sm:border-border/40 max-sm:bg-background max-sm:pb-[calc(5.25rem+env(safe-area-inset-bottom))] max-sm:shadow-[0_-8px_32px_rgba(0,0,0,0.05)] sm:border-2 sm:border-border sm:rounded-2xl sm:bg-background/90 sm:pb-3 sm:pt-3 sm:shadow-[3px_3px_0_black] sm:backdrop-blur-md supports-[backdrop-filter]:sm:bg-background/75">
                 <InputBar {...inputBarProps} />
               </div>
             </div>

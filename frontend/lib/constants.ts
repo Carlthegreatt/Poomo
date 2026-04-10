@@ -15,4 +15,5 @@ export const STORAGE_KEYS = {
   SESSIONS: "poomo-sessions",
   DAILY_GOAL: "poomo-daily-goal",
   CHAT_HISTORY: "poomo-chat-history",
+  NOTES: "poomo-notes",
 } as const;
