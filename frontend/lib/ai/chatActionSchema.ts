@@ -25,6 +25,9 @@ export const validatedChatActionSchema = z.discriminatedUnion("tool", [
       description: z.string().max(4000).nullish(),
       column: z.string().max(200).nullish(),
       due_date: z.string().max(32).nullish(),
+      due_time: z.string().max(8).nullish(),
+      priority: z.enum(["low", "medium", "high"]).nullish(),
+      task_type: z.string().max(80).nullish(),
     }),
   }),
   z.object({

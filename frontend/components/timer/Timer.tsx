@@ -96,6 +96,10 @@ const TIMER_COLUMN =
 /** Matches Tailwind `sm:` — fullscreen is desktop/tablet only. */
 const FULLSCREEN_MEDIA = "(min-width: 640px)";
 
+/** Show exit control when the pointer is in this band from the top of the viewport. */
+const FS_TOP_REVEAL_PX = 88;
+const FS_EXIT_HIDE_DELAY_MS = 750;
+
 function mediaAllowsFullscreen(): boolean {
   if (typeof window === "undefined") return false;
   return window.matchMedia(FULLSCREEN_MEDIA).matches;
@@ -120,6 +124,8 @@ export default function Timer() {
   const [pillBandWidthPx, setPillBandWidthPx] = useState<number | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [allowFullscreenUi, setAllowFullscreenUi] = useState(false);
+  const [showFsExitControl, setShowFsExitControl] = useState(false);
+  const fsExitHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [selectedPhase, setSelectedPhase] =
     useState<Exclude<Phase, "IDLE">>("WORK");
@@ -234,6 +240,43 @@ export default function Timer() {
     }
   }, [isFullscreen, cardControls]);
 
+  useEffect(() => {
+    if (!isFullscreen) {
+      setShowFsExitControl(false);
+      if (fsExitHideTimerRef.current) {
+        clearTimeout(fsExitHideTimerRef.current);
+        fsExitHideTimerRef.current = null;
+      }
+      return;
+    }
+
+    const clearHideTimer = () => {
+      if (fsExitHideTimerRef.current) {
+        clearTimeout(fsExitHideTimerRef.current);
+        fsExitHideTimerRef.current = null;
+      }
+    };
+
+    const onMove = (e: MouseEvent) => {
+      if (e.clientY < FS_TOP_REVEAL_PX) {
+        clearHideTimer();
+        setShowFsExitControl(true);
+      } else {
+        clearHideTimer();
+        fsExitHideTimerRef.current = setTimeout(() => {
+          setShowFsExitControl(false);
+          fsExitHideTimerRef.current = null;
+        }, FS_EXIT_HIDE_DELAY_MS);
+      }
+    };
+
+    window.addEventListener("mousemove", onMove);
+    return () => {
+      clearHideTimer();
+      window.removeEventListener("mousemove", onMove);
+    };
+  }, [isFullscreen]);
+
   // Set initial display to default phase on mount if idle
   useEffect(() => {
     if (phase === "IDLE" && remainingMs === 0) {
@@ -328,16 +371,26 @@ export default function Timer() {
           )}
         >
           {isFullscreen && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="fixed right-[max(1rem,env(safe-area-inset-right))] top-[max(1rem,env(safe-area-inset-top))] z-[60] size-12 text-foreground hover:bg-muted/30"
-              onClick={() => void toggleFullscreen()}
-              aria-label="Exit fullscreen"
+            <div
+              className={cn(
+                "fixed inset-x-0 top-0 z-[60] flex justify-center pt-[max(0.75rem,env(safe-area-inset-top))] transition-opacity duration-200",
+                showFsExitControl
+                  ? "pointer-events-auto opacity-100"
+                  : "pointer-events-none opacity-0",
+              )}
             >
-              <Minimize2 className="size-7" />
-            </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                tabIndex={showFsExitControl ? 0 : -1}
+                className="size-12 text-foreground hover:bg-muted/30"
+                onClick={() => void toggleFullscreen()}
+                aria-label="Exit fullscreen"
+              >
+                <Minimize2 className="size-7" />
+              </Button>
+            </div>
           )}
           {isFullscreen ? (
             <div className="flex w-full max-w-none flex-col items-center justify-center gap-0 border-0 bg-transparent p-0">

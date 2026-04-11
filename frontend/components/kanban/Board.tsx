@@ -173,11 +173,16 @@ export default function Board() {
             );
             persistTaskOrder(activeColId);
           } else if (activeColId !== overColId) {
-            persistTaskMove(active.id as string, overColId);
+            /* activeColId = column at drag start (still correct in activeData after dragOver moves) */
+            persistTaskMove(overColId, activeColId);
           }
         } else if (overData?.type === "column") {
-          if (task.column_id !== over.id) {
-            persistTaskMove(active.id as string, over.id as string);
+          const toCol = over.id as string;
+          /* After dragOver, task.column_id already equals toCol — do not compare to that or we skip save */
+          if (activeColId !== toCol) {
+            persistTaskMove(toCol, activeColId);
+          } else {
+            persistTaskOrder(toCol);
           }
         }
       }

@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Plus, Check } from "lucide-react";
 import { useKanban } from "@/stores/kanbanStore";
-import { TASK_COLORS } from "@/lib/kanban";
+import { TASK_COLORS, TASK_PRIORITY_OPTIONS } from "@/lib/kanban";
+import type { KanbanTaskPriority } from "@/lib/kanban";
+import TaskDueAndTypeFields from "./TaskDueAndTypeFields";
+import { KanbanFlyoutSelect } from "./KanbanFlyoutMenu";
 
 interface TaskFormProps {
   columnId: string;
@@ -19,6 +22,13 @@ export default function TaskForm({ columnId }: TaskFormProps) {
   const [description, setDescription] = useState("");
   const [color, setColor] = useState<string | undefined>(undefined);
   const [dueDate, setDueDate] = useState("");
+  const [dueTime, setDueTime] = useState("");
+  const [priority, setPriority] = useState<string>("");
+  const [taskType, setTaskType] = useState("");
+
+  useEffect(() => {
+    if (!dueDate) setDueTime("");
+  }, [dueDate]);
 
   const handleSubmit = () => {
     const trimmed = title.trim();
@@ -29,12 +39,18 @@ export default function TaskForm({ columnId }: TaskFormProps) {
       description: description.trim() || undefined,
       color,
       due_date: dueDate || undefined,
+      due_time: dueDate && dueTime ? dueTime : undefined,
+      priority: (priority || null) as KanbanTaskPriority | null,
+      task_type: taskType.trim() || null,
     });
 
     setTitle("");
     setDescription("");
     setColor(undefined);
     setDueDate("");
+    setDueTime("");
+    setPriority("");
+    setTaskType("");
     setOpen(false);
   };
 
@@ -94,10 +110,23 @@ export default function TaskForm({ columnId }: TaskFormProps) {
             </div>
           </div>
 
-          <Input
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
+          <TaskDueAndTypeFields
+            dueDate={dueDate}
+            setDueDate={setDueDate}
+            dueTime={dueTime}
+            setDueTime={setDueTime}
+            taskType={taskType}
+            setTaskType={setTaskType}
+          />
+
+          <KanbanFlyoutSelect
+            label="Priority"
+            value={priority}
+            onChange={setPriority}
+            options={TASK_PRIORITY_OPTIONS.map((o) => ({
+              value: o.value,
+              label: o.label,
+            }))}
           />
 
           <Button

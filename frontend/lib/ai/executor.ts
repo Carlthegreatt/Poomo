@@ -74,11 +74,15 @@ export async function executeAction(action: ChatAction): Promise<void> {
           return;
         }
 
-        const { title, description, due_date } = validated.args;
+        const { title, description, due_date, due_time, priority, task_type } =
+          validated.args;
         await kanban.addTask(column.id, {
           title,
           description: description ?? undefined,
           due_date: due_date ?? undefined,
+          due_time: due_time ?? undefined,
+          priority: priority ?? undefined,
+          task_type: task_type ?? undefined,
         });
         toast.success(`Task created: ${title}`);
         break;

@@ -102,6 +102,9 @@ function buildSystemPrompt(ctx: ValidatedAppContext): string {
           .map((t) => {
             let s = `${t.title} (${t.column}`;
             if (t.due_date) s += `, due ${t.due_date}`;
+            if (t.due_time) s += ` @ ${t.due_time}`;
+            if (t.priority) s += `, ${t.priority} priority`;
+            if (t.task_type) s += `, type ${t.task_type}`;
             return s + ")";
           })
           .join(", ")
@@ -141,7 +144,9 @@ function buildSystemPrompt(ctx: ValidatedAppContext): string {
     "",
     'For create_task, the "column" argument must be the exact title of one of the kanban columns listed below (match spelling/case).',
     "",
-    "Use the available tools ONLY for actions: starting/pausing/resetting the timer, creating tasks, scheduling new events, or saving notes (save_note). When the user wants to capture an idea, reminder, or 'take a note', call save_note with a short title and the full body text. You may structure the body with line breaks or bullets to organize ideas. Prefer titles that match or complement existing note themes when relevant.",
+    "Use the available tools ONLY for actions: starting/pausing/resetting the timer, creating tasks, scheduling new events, or saving notes (save_note). For quick captures, call save_note with a short title and full body (line breaks/bullets welcome).",
+    "When the user wants help organizing notes (e.g. 'help me organize my notes'), do NOT save until they have pasted or listed their raw material. Ask one short, friendly question to collect what they want organized. After they reply, group and clean it up: use multiple save_note calls if several separate notes make sense, or one save_note with clear sections in the body. Use scannable titles so the Notes tab stays tidy. Mention they can open the Notes tab to edit, pin, or reorder.",
+    "When they save an idea and want follow-up later, confirm briefly. In later chats, if Recent notes includes those ideas, you may ask one short check-in when it fits—not every message.",
     "Keep responses short — 1-3 sentences unless the user asks for detail.",
     `Today's date is ${today}.`,
     "",
@@ -176,35 +181,65 @@ const TOOL_TO_WIDGET: Record<string, string> = {
   save_note: "notes",
 };
 
+function confirmationLineForAction({ tool, args }: ChatAction): string {
+  switch (tool) {
+    case "start_timer": {
+      const label =
+        args.phase === "WORK"
+          ? "focus timer"
+          : args.phase === "BREAK_SHORT"
+            ? "short break"
+            : "long break";
+      return `Starting a ${label}.`;
+    }
+    case "pause_timer":
+      return "Timer paused.";
+    case "reset_timer":
+      return "Timer reset.";
+    case "create_task":
+      return `Task created: ${args.title}.`;
+    case "schedule_event":
+      return `Event scheduled: ${args.title}.`;
+    default:
+      return "";
+  }
+}
+
+/** Readable confirmations: newlines between actions; grouped multi–save_note uses a bullet list. */
 function buildConfirmation(actions: ChatAction[]): string {
-  return actions
-    .map(({ tool, args }) => {
-      switch (tool) {
-        case "start_timer": {
-          const label =
-            args.phase === "WORK"
-              ? "focus timer"
-              : args.phase === "BREAK_SHORT"
-                ? "short break"
-                : "long break";
-          return `Starting a ${label}.`;
-        }
-        case "pause_timer":
-          return "Timer paused.";
-        case "reset_timer":
-          return "Timer reset.";
-        case "create_task":
-          return `Task created: ${args.title}.`;
-        case "schedule_event":
-          return `Event scheduled: ${args.title}.`;
-        case "save_note":
-          return `Saved to Notes: ${args.title}.`;
-        default:
-          return "";
+  const lines: string[] = [];
+  let i = 0;
+
+  while (i < actions.length) {
+    const action = actions[i];
+    if (!action) break;
+
+    if (action.tool === "save_note") {
+      const titles: string[] = [];
+      while (i < actions.length && actions[i]?.tool === "save_note") {
+        const t = String(actions[i]!.args.title ?? "").trim();
+        if (t) titles.push(t);
+        i++;
       }
-    })
-    .filter(Boolean)
-    .join(" ");
+      if (titles.length === 0) continue;
+      if (titles.length === 1) {
+        lines.push(`Saved to Notes: ${titles[0]}.`);
+      } else {
+        lines.push("Saved to Notes:");
+        for (const t of titles) {
+          lines.push(`• ${t}`);
+        }
+      }
+      continue;
+    }
+
+    const line = confirmationLineForAction(action);
+    if (line) lines.push(line);
+    i++;
+  }
+
+  if (lines.length === 0) return "";
+  return lines.join("\n");
 }
 
 function isRateLimitError(error: unknown): boolean {
@@ -459,7 +494,10 @@ export async function POST(req: Request) {
             if (actions.length > 0) {
               const confirmation = buildConfirmation(actions);
               if (confirmation) {
-                send({ type: "text_delta", content: confirmation });
+                const afterModel = textFromModel.trim().length > 0;
+                const multiLine = confirmation.includes("\n");
+                const prefix = afterModel ? (multiLine ? "\n\n" : " ") : "";
+                send({ type: "text_delta", content: prefix + confirmation });
               }
               send({ type: "actions", actions });
               chatDebug("stream actions", {

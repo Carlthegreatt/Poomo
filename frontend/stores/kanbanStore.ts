@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { toast } from "sonner";
 import {
   fetchBoard,
+  getTaskTypeLabels,
+  registerTaskTypeLabel,
   createColumn as apiCreateColumn,
   updateColumn as apiUpdateColumn,
   deleteColumn as apiDeleteColumn,
@@ -17,10 +19,12 @@ import {
 interface KanbanState {
   columns: KanbanColumn[];
   tasks: KanbanTask[];
+  taskTypes: string[];
   isLoading: boolean;
   error: string | null;
 
   loadBoard: () => Promise<void>;
+  registerTaskType: (label: string) => Promise<void>;
   addColumn: (title: string) => Promise<void>;
   renameColumn: (id: string, title: string) => Promise<void>;
   removeColumn: (id: string) => Promise<void>;
@@ -34,12 +38,24 @@ interface KanbanState {
       description?: string;
       color?: string;
       due_date?: string;
+      due_time?: string;
+      priority?: KanbanTask["priority"];
+      task_type?: string | null;
     }
   ) => Promise<void>;
   editTask: (
     id: string,
     updates: Partial<
-      Pick<KanbanTask, "title" | "description" | "color" | "due_date">
+      Pick<
+        KanbanTask,
+        | "title"
+        | "description"
+        | "color"
+        | "due_date"
+        | "due_time"
+        | "priority"
+        | "task_type"
+      >
     >
   ) => Promise<void>;
   removeTask: (id: string) => Promise<void>;
@@ -54,10 +70,8 @@ interface KanbanState {
     overId: string
   ) => void;
   persistTaskOrder: (columnId: string) => Promise<void>;
-  persistTaskMove: (
-    taskId: string,
-    toColumnId: string
-  ) => Promise<void>;
+  /** Persist after cross-column drag; `fromColumnId` is the column where the drag started. */
+  persistTaskMove: (toColumnId: string, fromColumnId: string) => Promise<void>;
 }
 
 function tasksForColumn(tasks: KanbanTask[], columnId: string) {
@@ -69,18 +83,30 @@ function tasksForColumn(tasks: KanbanTask[], columnId: string) {
 export const useKanban = create<KanbanState>((set, get) => ({
   columns: [],
   tasks: [],
+  taskTypes: [],
   isLoading: false,
   error: null,
 
   loadBoard: async () => {
     set({ isLoading: true, error: null });
     try {
-      const { columns, tasks } = await fetchBoard();
-      set({ columns, tasks, isLoading: false });
+      const { columns, tasks, task_types } = await fetchBoard();
+      set({ columns, tasks, taskTypes: task_types, isLoading: false });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to load board";
       set({ error: msg, isLoading: false });
       toast.error(msg);
+    }
+  },
+
+  registerTaskType: async (label: string) => {
+    const t = label.trim();
+    if (!t) return;
+    try {
+      const next = await registerTaskTypeLabel(t);
+      set({ taskTypes: next });
+    } catch {
+      toast.error("Failed to save task type");
     }
   },
 
@@ -175,13 +201,19 @@ export const useKanban = create<KanbanState>((set, get) => ({
     const colTasks = tasksForColumn(get().tasks, columnId);
     const position = colTasks.length;
     const tempId = `temp-${Date.now()}`;
+    const dueDate = task.due_date ?? null;
+    const dueTime =
+      dueDate && task.due_time?.trim() ? task.due_time.trim() : null;
     const optimistic: KanbanTask = {
       id: tempId,
       column_id: columnId,
       title: task.title,
       description: task.description ?? null,
       color: task.color ?? null,
-      due_date: task.due_date ?? null,
+      due_date: dueDate,
+      due_time: dueTime,
+      priority: task.priority ?? null,
+      task_type: task.task_type?.trim() || null,
       position,
       created_at: new Date().toISOString(),
     };
@@ -195,10 +227,15 @@ export const useKanban = create<KanbanState>((set, get) => ({
         description: task.description,
         color: task.color,
         due_date: task.due_date,
+        due_time: task.due_time,
+        priority: task.priority,
+        task_type: task.task_type,
         position,
       });
+      const taskTypes = await getTaskTypeLabels();
       set((s) => ({
         tasks: s.tasks.map((t) => (t.id === tempId ? real : t)),
+        taskTypes,
       }));
     } catch {
       set((s) => ({ tasks: s.tasks.filter((t) => t.id !== tempId) }));
@@ -216,6 +253,10 @@ export const useKanban = create<KanbanState>((set, get) => ({
 
     try {
       await apiUpdateTask(id, updates);
+      if (updates.task_type !== undefined) {
+        const taskTypes = await getTaskTypeLabels();
+        set({ taskTypes });
+      }
     } catch {
       set((s) => ({
         tasks: s.tasks.map((t) => (t.id === id ? prev : t)),
@@ -242,6 +283,7 @@ export const useKanban = create<KanbanState>((set, get) => ({
       const task = s.tasks.find((t) => t.id === taskId);
       if (!task) return s;
 
+      const fromColumnId = task.column_id;
       const withoutTask = s.tasks.filter((t) => t.id !== taskId);
       const destTasks = tasksForColumn(withoutTask, toColumnId);
       destTasks.splice(newIndex, 0, { ...task, column_id: toColumnId });
@@ -252,11 +294,14 @@ export const useKanban = create<KanbanState>((set, get) => ({
         column_id: toColumnId,
       }));
 
-      const otherTasks = withoutTask.filter(
-        (t) => t.column_id !== toColumnId
+      const rest = withoutTask.filter(
+        (t) => t.column_id !== fromColumnId && t.column_id !== toColumnId,
       );
+      const sourceReindexed = tasksForColumn(withoutTask, fromColumnId)
+        .sort((a, b) => a.position - b.position)
+        .map((t, i) => ({ ...t, position: i }));
 
-      return { tasks: [...otherTasks, ...updatedDest] };
+      return { tasks: [...rest, ...sourceReindexed, ...updatedDest] };
     });
   },
 
@@ -289,15 +334,23 @@ export const useKanban = create<KanbanState>((set, get) => ({
     }
   },
 
-  persistTaskMove: async (taskId, toColumnId) => {
-    const colTasks = tasksForColumn(get().tasks, toColumnId);
-    const items = colTasks.map((t) => ({
+  persistTaskMove: async (toColumnId, fromColumnId) => {
+    if (fromColumnId === toColumnId) {
+      await get().persistTaskOrder(toColumnId);
+      return;
+    }
+    const { tasks } = get();
+    const srcItems = tasksForColumn(tasks, fromColumnId).map((t) => ({
+      id: t.id,
+      position: t.position,
+    }));
+    const destItems = tasksForColumn(tasks, toColumnId).map((t) => ({
       id: t.id,
       position: t.position,
       column_id: toColumnId,
     }));
     try {
-      await batchUpdateTaskPositions(items);
+      await batchUpdateTaskPositions([...srcItems, ...destItems]);
     } catch {
       toast.error("Failed to save task move");
     }

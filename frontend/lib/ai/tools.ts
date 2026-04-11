@@ -60,6 +60,21 @@ export const poomoTools: FunctionDeclaration[] = [
           type: Type.STRING,
           description: "Optional due date in YYYY-MM-DD format",
         },
+        due_time: {
+          type: Type.STRING,
+          description:
+            "Optional local due time on that date, 24h HH:mm (only if due_date is set)",
+        },
+        priority: {
+          type: Type.STRING,
+          description: "Optional priority: low, medium, or high",
+          enum: ["low", "medium", "high"],
+        },
+        task_type: {
+          type: Type.STRING,
+          description:
+            "Optional user-defined task type label (e.g. Bug, Feature, Chore)",
+        },
       },
       required: ["title"],
     },
@@ -67,7 +82,7 @@ export const poomoTools: FunctionDeclaration[] = [
   {
     name: "save_note",
     description:
-      "Save content to the user's Notes tab. Use when they ask to take a note, remember something, jot down an idea, or capture thoughts. Use a clear short title and put the full text in body (plain text; line breaks allowed).",
+      "Save content to the user's Notes tab. Use when they ask to take a note, remember something, capture thoughts, or after they asked you to organize notes (you may call save_note multiple times in one turn for distinct organized notes—each needs title + body). Use a clear short title and body (plain text; line breaks and bullet lists allowed). If they want an idea revisited later, say you'll follow up in a future chat; when those titles appear in context later, you may ask a brief check-in when appropriate.",
     parameters: {
       type: Type.OBJECT,
       properties: {

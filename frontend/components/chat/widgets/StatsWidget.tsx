@@ -8,9 +8,9 @@ export function StatsWidget() {
   const router = useRouter();
   const todayCount = useStats((s) => s.getTodayCount());
   const todayMinutes = useStats((s) => s.getTodayMinutes());
-  const streaks = useStats((s) => s.getStreaks());
+  const streakDays = useStats((s) => s.getStreaks().current);
 
-  const summary = `${todayCount} session${todayCount !== 1 ? "s" : ""} · ${todayMinutes}min today · ${streaks.current}d streak`;
+  const summary = `${todayCount} session${todayCount !== 1 ? "s" : ""} · ${todayMinutes}min today · ${streakDays}d streak`;
 
   return (
     <button

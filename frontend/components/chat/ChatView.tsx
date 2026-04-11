@@ -19,11 +19,17 @@ import { StatsWidget } from "@/components/chat/widgets/StatsWidget";
 import { NotesWidget } from "@/components/chat/widgets/NotesWidget";
 import type { WidgetType } from "@/lib/ai/chatStorage";
 
-const SUGGESTIONS = [
-  "Start a focus session",
-  "What's on my todo list?",
-  "Schedule a study session tomorrow at 3pm",
-  "Take a note of my idea: weekly review on Sundays",
+const SUGGESTIONS: readonly { label: string; message: string }[] = [
+  { label: "Start a focus session", message: "Start a focus session" },
+  { label: "What's on my todo list?", message: "What's on my todo list?" },
+  {
+    label: "Schedule a study session tomorrow at 3pm",
+    message: "Schedule a study session tomorrow at 3pm",
+  },
+  {
+    label: "Help me organize my notes",
+    message: "Help me organize my notes",
+  },
 ];
 
 function scrollTranscriptToBottom(
@@ -370,13 +376,13 @@ export default function ChatView() {
             >
               {SUGGESTIONS.map((s) => (
                 <motion.button
-                  key={s}
+                  key={s.label}
                   whileHover={{ y: -2 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => handleSuggestion(s)}
+                  onClick={() => handleSuggestion(s.message)}
                   className="border-2 border-border rounded-full px-4 py-1.5 text-sm font-medium bg-white shadow-[2px_2px_0_black] hover:bg-secondary hover:text-secondary-foreground active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-colors cursor-pointer"
                 >
-                  {s}
+                  {s.label}
                 </motion.button>
               ))}
             </motion.div>

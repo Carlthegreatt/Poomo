@@ -9,7 +9,10 @@ export const appContextSchema = z.object({
         title: z.string().max(500),
         column: z.string().max(200),
         due_date: z.string().max(32).nullable(),
+        due_time: z.string().max(8).nullable().optional(),
         description: z.string().max(4000).nullable(),
+        priority: z.enum(["low", "medium", "high"]).nullable().optional(),
+        task_type: z.string().max(80).nullable().optional(),
       }),
     )
     .max(100),

@@ -11,7 +11,10 @@ export interface AppContext {
     title: string;
     column: string;
     due_date: string | null;
+    due_time: string | null;
     description: string | null;
+    priority: string | null;
+    task_type: string | null;
   }[];
   events: {
     title: string;
@@ -94,7 +97,10 @@ export async function buildContext(): Promise<AppContext> {
       title: t.title,
       column: columnMap.get(t.column_id) ?? "Unknown",
       due_date: t.due_date,
+      due_time: t.due_time,
       description: t.description,
+      priority: t.priority,
+      task_type: t.task_type,
     })),
     events: upcomingEvents.map((e) => ({
       title: e.title,

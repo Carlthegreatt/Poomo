@@ -99,6 +99,25 @@ const SAVE_NOTE_PATTERNS: RegExp[] = [
 /** Natural phrasing → save_note (same as chat tool; no API). */
 function matchSaveNoteIntent(text: string): IntentMatch | null {
   const normalized = text.trim();
+
+  /** "Take a note of my idea: …" / "… my idea — …" / "… my idea something" */
+  const ofMyIdea =
+    /^\s*take\s+a\s+note\s+of\s+my\s+idea(?:\s*[:\u2014\u2013\-]\s*|\s+)([\s\S]+)$/i;
+  const ideaM = normalized.match(ofMyIdea);
+  const ideaBody = ideaM?.[1]?.trim();
+  if (ideaBody) {
+    const title = deriveNoteTitle(ideaBody);
+    return {
+      response: `Saved “${title}” to your Notes. I'll ask you about it another time we chat.`,
+      execute: () =>
+        executeAction({
+          tool: "save_note",
+          args: { title, body: ideaBody },
+        }),
+      widget: "notes",
+    };
+  }
+
   for (const re of SAVE_NOTE_PATTERNS) {
     const m = normalized.match(re);
     const raw = m?.[1]?.trim();

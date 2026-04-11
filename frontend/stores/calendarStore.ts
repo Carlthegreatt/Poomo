@@ -74,7 +74,23 @@ export const useCalendar = create<CalendarState>((set, get) => ({
     const kanbanEntries: CalendarEntry[] = kanbanTasks
       .filter((t) => t.due_date)
       .map((t) => {
-        const date = new Date(t.due_date!);
+        if (t.due_time) {
+          const [h, m] = t.due_time.split(":").map((x) => parseInt(x, 10));
+          const start = new Date(t.due_date! + "T00:00:00");
+          if (!Number.isNaN(h)) start.setHours(h, Number.isNaN(m) ? 0 : m, 0, 0);
+          const end = new Date(start.getTime() + 60 * 60 * 1000);
+          return {
+            id: `kanban-${t.id}`,
+            title: t.title,
+            description: t.description,
+            start,
+            end,
+            allDay: false,
+            color: t.color,
+            source: "kanban" as const,
+          };
+        }
+        const date = new Date(t.due_date! + "T00:00:00");
         return {
           id: `kanban-${t.id}`,
           title: t.title,
