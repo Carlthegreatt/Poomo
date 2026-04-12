@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { ListChecks } from "lucide-react";
 import { useStats } from "@/stores/statsStore";
@@ -15,11 +14,8 @@ function formatMinutes(ms: number): string {
 }
 
 export default function TasksTab() {
-  const { sessions, getTaskBreakdown } = useStats();
-  const breakdown = useMemo(
-    () => getTaskBreakdown(),
-    [sessions, getTaskBreakdown],
-  );
+  const { getTaskBreakdown } = useStats();
+  const breakdown = getTaskBreakdown();
 
   const maxMs = breakdown.length > 0 ? breakdown[0].totalMs : 1;
 

@@ -49,6 +49,7 @@ export default function Board() {
     columns,
     tasks,
     isLoading,
+    error,
     loadBoard,
     addColumn,
     reorderColumns,
@@ -86,13 +87,13 @@ export default function Board() {
       const data = active.data.current;
 
       if (data?.type === "task") {
-        const task = tasks.find((t) => t.id === active.id);
+        const task = useKanban.getState().tasks.find((t) => t.id === active.id);
         if (task) setActiveTask(task);
       } else if (data?.type === "column") {
         setActiveColumnId(active.id as string);
       }
     },
-    [tasks]
+    []
   );
 
   const handleDragOver = useCallback(
@@ -116,21 +117,27 @@ export default function Board() {
         return;
       }
 
-      if (activeColId !== overColId) {
-        const colTasks = tasks
-          .filter((t) => t.column_id === overColId)
-          .sort((a, b) => a.position - b.position);
+      if (activeColId === overColId) return;
 
-        let newIndex = colTasks.length;
-        if (overData?.type === "task") {
-          const overIdx = colTasks.findIndex((t) => t.id === over.id);
-          if (overIdx !== -1) newIndex = overIdx;
-        }
+      // Read current tasks from the store to avoid stale closure
+      const currentTasks = useKanban.getState().tasks;
+      const task = currentTasks.find((t) => t.id === active.id);
+      // Guard: if already moved to this column, don't move again
+      if (!task || task.column_id === overColId) return;
 
-        moveTask(active.id as string, overColId, newIndex);
+      const colTasks = currentTasks
+        .filter((t) => t.column_id === overColId)
+        .sort((a, b) => a.position - b.position);
+
+      let newIndex = colTasks.length;
+      if (overData?.type === "task") {
+        const overIdx = colTasks.findIndex((t) => t.id === over.id);
+        if (overIdx !== -1) newIndex = overIdx;
       }
+
+      moveTask(active.id as string, overColId, newIndex);
     },
-    [tasks, moveTask]
+    [moveTask],
   );
 
   const handleDragEnd = useCallback(
@@ -154,7 +161,7 @@ export default function Board() {
 
       if (activeData?.type === "task") {
         const activeColId = activeData.columnId as string;
-        const task = tasks.find((t) => t.id === active.id);
+        const task = useKanban.getState().tasks.find((t) => t.id === active.id);
         if (!task) return;
 
         if (overData?.type === "task") {
@@ -167,23 +174,21 @@ export default function Board() {
             );
             persistTaskOrder(activeColId);
           } else if (activeColId !== overColId) {
-            persistTaskMove(active.id as string, overColId);
+            /* activeColId = column at drag start (still correct in activeData after dragOver moves) */
+            persistTaskMove(overColId, activeColId);
           }
         } else if (overData?.type === "column") {
-          if (task.column_id !== over.id) {
-            persistTaskMove(active.id as string, over.id as string);
+          const toCol = over.id as string;
+          /* After dragOver, task.column_id already equals toCol — do not compare to that or we skip save */
+          if (activeColId !== toCol) {
+            persistTaskMove(toCol, activeColId);
+          } else {
+            persistTaskOrder(toCol);
           }
         }
       }
     },
-    [
-      tasks,
-      reorderColumns,
-      persistColumnOrder,
-      reorderTaskInColumn,
-      persistTaskOrder,
-      persistTaskMove,
-    ]
+    [reorderColumns, persistColumnOrder, reorderTaskInColumn, persistTaskOrder, persistTaskMove]
   );
 
   const [newColumnName, setNewColumnName] = useState("");
@@ -201,6 +206,17 @@ export default function Board() {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="size-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (error && columns.length === 0) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center gap-4 p-6 text-center">
+        <p className="text-sm text-muted-foreground max-w-md">{error}</p>
+        <Button type="button" variant="filled" onClick={() => loadBoard({ force: true })}>
+          Retry
+        </Button>
       </div>
     );
   }
@@ -291,8 +307,16 @@ export default function Board() {
         {activeColumnId && (() => {
           const col = columns.find((c) => c.id === activeColumnId);
           if (!col) return null;
+          const w = columnWidths[col.id] ?? DEFAULT_WIDTH;
           return (
-            <div className="w-[320px] h-[200px] border-2 border-border bg-white rounded-3xl shadow-[4px_4px_0_black] opacity-80" />
+            <div
+              style={{ width: w }}
+              className="min-h-[200px] border-2 border-border bg-white rounded-3xl shadow-[4px_4px_0_black] opacity-95 flex-shrink-0 flex flex-col"
+            >
+              <div className="p-3">
+                <p className="text-sm font-semibold truncate">{col.title}</p>
+              </div>
+            </div>
           );
         })()}
       </DragOverlay>

@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { Flame, Clock, Sigma, CalendarClock, TrendingUp, Star } from "lucide-react";
 import { useStats } from "@/stores/statsStore";
@@ -55,23 +54,16 @@ function formatHours(ms: number): string {
 
 export default function OverviewTab() {
   const {
-    sessions,
     getTodayCount,
     getTodayMinutes,
     getStreaks,
     getLifetimeStats,
   } = useStats();
 
-  const todayCount = useMemo(() => getTodayCount(), [sessions, getTodayCount]);
-  const todayMinutes = useMemo(
-    () => getTodayMinutes(),
-    [sessions, getTodayMinutes],
-  );
-  const streaks = useMemo(() => getStreaks(), [sessions, getStreaks]);
-  const lifetime = useMemo(
-    () => getLifetimeStats(),
-    [sessions, getLifetimeStats],
-  );
+  const todayCount = getTodayCount();
+  const todayMinutes = getTodayMinutes();
+  const streaks = getStreaks();
+  const lifetime = getLifetimeStats();
 
   return (
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">

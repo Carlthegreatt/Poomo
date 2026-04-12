@@ -32,15 +32,10 @@ const MONTH_NAMES = [
 ];
 
 export default function ChartsTab() {
-  const { sessions, dailyGoal, setDailyGoal, getTodayCount, getHeatmapData } =
-    useStats();
+  const { dailyGoal, setDailyGoal, getTodayCount, getHeatmapData } = useStats();
 
-  const todayCount = useMemo(() => getTodayCount(), [sessions, getTodayCount]);
-
-  const heatmap = useMemo(
-    () => getHeatmapData(HEATMAP_WEEKS),
-    [sessions, getHeatmapData],
-  );
+  const todayCount = getTodayCount();
+  const heatmap = getHeatmapData(HEATMAP_WEEKS);
 
   const maxMinutes = Math.max(...heatmap.map((d) => d.focusMinutes), 1);
 

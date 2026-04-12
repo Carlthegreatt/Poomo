@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState, useEffect } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
@@ -27,6 +27,17 @@ interface ColumnProps {
 export default function Column({ column, tasks, width, index = 0, onResize }: ColumnProps) {
   const startXRef = useRef(0);
   const startWidthRef = useRef(0);
+  const [entranceDone, setEntranceDone] = useState(false);
+
+  useEffect(() => {
+    const delayMs = index * 50;
+    const durationMs = 300;
+    const id = window.setTimeout(
+      () => setEntranceDone(true),
+      delayMs + durationMs + 30
+    );
+    return () => clearTimeout(id);
+  }, [index]);
 
   const {
     attributes,
@@ -70,11 +81,15 @@ export default function Column({ column, tasks, width, index = 0, onResize }: Co
   );
 
   const style: React.CSSProperties = {
-    transform: CSS.Translate.toString(transform),
-    transition,
+    transform: CSS.Transform.toString(transform),
+    transition: isDragging ? undefined : transition,
     opacity: isDragging ? 0.5 : 1,
     width: `${width}px`,
-    animation: `columnEntrance 0.3s ease-out ${index * 0.05}s both`,
+    // Run entrance only once; toggling animation off/on after drag was restarting keyframes (opacity flash / broken drag).
+    animation:
+      entranceDone || isDragging
+        ? "none"
+        : `columnEntrance 0.3s ease-out ${index * 0.05}s both`,
   };
 
   return (

@@ -1,4 +1,7 @@
 import { create } from "zustand";
+import { isCloudDataBackend } from "@/lib/data/authSession";
+import { patchPreferencesCache } from "@/lib/data/preferencesCache";
+import { setDailyGoalAction } from "@/lib/actions/preferences";
 import {
   fetchSessions,
   getDailyGoal,
@@ -51,8 +54,21 @@ export const useStats = create<StatsState>((set, get) => ({
   },
 
   setDailyGoal: (goal) => {
-    persistGoal(goal);
-    set({ dailyGoal: goal });
+    if (isCloudDataBackend()) {
+      void (async () => {
+        const result = await setDailyGoalAction(goal);
+        if (result.ok) {
+          patchPreferencesCache({ daily_goal: result.data.dailyGoal });
+          set({ dailyGoal: result.data.dailyGoal });
+        }
+      })();
+      return;
+    }
+    void persistGoal(goal)
+      .then(() => set({ dailyGoal: getDailyGoal() }))
+      .catch(() => {
+        /* toast optional */
+      });
   },
 
   getTodayCount: () =>

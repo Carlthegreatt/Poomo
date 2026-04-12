@@ -211,32 +211,49 @@
   border-left: none;
 }
 
+/* Day-name row stays above all-day events (avoids overlap from positioning) */
+.rbc-time-view .rbc-time-header-content > .rbc-row:first-child {
+  position: relative;
+  z-index: 5;
+}
+
 /* Gutter in the header matches the dark day-name row */
 .rbc-time-header-gutter {
   background: var(--foreground);
   border-right: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
 }
 
-/* Collapse the all-day row when empty */
-.rbc-allday-cell {
-  display: none;
-}
-
-.rbc-allday-cell + .rbc-allday-cell {
-  display: none;
-}
-
-/* Expand when it actually contains events */
-.rbc-allday-cell:has(.rbc-row-segment) {
-  display: block;
+/*
+ * All-day row: keep every .rbc-allday-cell in the flex row.
+ * display:none on empty cells broke column alignment — only the day with an
+ * event rendered as a single full-width block, so segments overlapped headers.
+ */
+.rbc-time-view .rbc-allday-cell {
+  box-sizing: border-box;
+  flex: 1 1 0%;
+  min-width: 0;
+  position: relative;
   background: var(--card);
-  min-height: 1.5rem;
-  padding: 2px 0;
   border-bottom: 2px solid var(--border);
+  padding: 0.25rem 0 0.375rem;
 }
 
-.rbc-allday-cell:has(.rbc-row-segment) + .rbc-allday-cell {
-  display: block;
+.rbc-time-view .rbc-allday-cell + .rbc-allday-cell {
+  border-left: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+}
+
+.rbc-time-view .rbc-allday-events {
+  position: relative;
+  z-index: 1;
+}
+
+.rbc-time-view .rbc-allday-cell .rbc-row-content {
+  z-index: 1;
+}
+
+/* Let the all-day row shrink when empty; content still expands for events */
+.rbc-time-view .rbc-time-header-content > .rbc-row:not(:first-child) {
+  min-height: 0;
 }
 
 /* Time content scrollable area */

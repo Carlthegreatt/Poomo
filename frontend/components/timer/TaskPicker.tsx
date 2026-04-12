@@ -1,86 +1,134 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Target, X } from "lucide-react";
-import { fetchBoard, type KanbanTask } from "@/lib/kanban";
+import { cn } from "@/lib/utils";
+import { useKanban } from "@/stores/kanbanStore";
 import { useTimer } from "@/stores/timerStore";
+import {
+  KanbanFlyoutTrigger,
+  KanbanFlyoutPanel,
+  useKanbanFlyoutDismiss,
+  useFlyoutListMaxStyle,
+  KANBAN_FLYOUT_SCROLL_CLASS,
+  KANBAN_FLYOUT_ROW_CLASS,
+} from "@/components/kanban/KanbanFlyoutMenu";
 
-export default function TaskPicker() {
+type TaskPickerProps = {
+  /** Full width of parent (e.g. same max-width column as the timer card) */
+  embedInCard?: boolean;
+};
+
+export default function TaskPicker({ embedInCard = false }: TaskPickerProps) {
   const activeTaskId = useTimer((s) => s.activeTaskId);
   const activeTaskTitle = useTimer((s) => s.activeTaskTitle);
   const setActiveTask = useTimer((s) => s.setActiveTask);
   const isRunning = useTimer((s) => s.isRunning);
 
-  const [tasks, setTasks] = useState<KanbanTask[]>([]);
+  const tasks = useKanban((s) => s.tasks);
+  const loadBoard = useKanban((s) => s.loadBoard);
+
   const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  useKanbanFlyoutDismiss(open, setOpen, containerRef);
 
   useEffect(() => {
-    fetchBoard().then(({ tasks: t }) => setTasks(t));
-  }, []);
+    void loadBoard();
+  }, [loadBoard]);
 
-  if (activeTaskId) {
-    return (
-      <div className="flex items-center gap-1.5 border-2 border-border rounded-full px-3 py-1 bg-white shadow-[2px_2px_0_black] text-sm font-medium max-w-[16rem]">
-        <Target className="size-3.5 shrink-0 text-primary" />
-        <span className="truncate">{activeTaskTitle}</span>
-        {!isRunning && (
+  const pickTask = (id: string, title: string) => {
+    setActiveTask(id, title);
+    setOpen(false);
+  };
+
+  const optionRowCount = useMemo(() => {
+    const extra = activeTaskId && !isRunning ? 1 : 0;
+    if (tasks.length === 0) return extra + 1;
+    return tasks.length + extra;
+  }, [tasks.length, activeTaskId, isRunning]);
+
+  const listMaxStyle = useFlyoutListMaxStyle(open, containerRef, 44, optionRowCount);
+
+  return (
+    <div
+      ref={containerRef}
+      className={cn("relative z-20", embedInCard && "w-full min-w-0")}
+    >
+      <KanbanFlyoutTrigger
+        open={open}
+        onToggle={() => setOpen((v) => !v)}
+        className={cn(!activeTaskId && "text-muted-foreground")}
+      >
+        <Target
+          className={cn(
+            "size-3.5 shrink-0",
+            activeTaskId ? "text-primary" : "text-muted-foreground",
+          )}
+        />
+        <span className="truncate flex-1 min-w-0 text-foreground">
+          {activeTaskId ? activeTaskTitle : "Link task"}
+        </span>
+        {activeTaskId && !isRunning ? (
           <button
-            onClick={() => setActiveTask(null, null)}
-            className="size-4 flex items-center justify-center rounded-full hover:bg-muted transition-colors cursor-pointer shrink-0"
+            type="button"
+            className="size-6 shrink-0 flex items-center justify-center rounded-lg hover:bg-muted transition-colors cursor-pointer -mr-1"
+            title="Unlink task"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveTask(null, null);
+            }}
           >
-            <X className="size-3" />
+            <X className="size-3.5" />
           </button>
-        )}
-      </div>
-    );
-  }
+        ) : null}
+      </KanbanFlyoutTrigger>
 
-  if (open) {
-    return (
-      <div className="relative">
-        <div className="border-2 border-border rounded-xl bg-white shadow-[3px_3px_0_black] p-1.5 max-w-[16rem] max-h-48 overflow-y-auto">
+      <KanbanFlyoutPanel open={open}>
+               <div className={KANBAN_FLYOUT_SCROLL_CLASS} style={listMaxStyle}>
+          {activeTaskId && !isRunning ? (
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTask(null, null);
+                setOpen(false);
+              }}
+              className={cn(KANBAN_FLYOUT_ROW_CLASS, "text-muted-foreground")}
+            >
+              No link
+            </button>
+          ) : null}
           {tasks.length === 0 ? (
-            <p className="text-sm text-muted-foreground px-2 py-1">
+            <p className="text-sm text-muted-foreground px-3 py-2">
               No tasks on board
             </p>
           ) : (
             tasks.map((task) => (
               <button
+                type="button"
                 key={task.id}
-                onClick={() => {
-                  setActiveTask(task.id, task.title);
-                  setOpen(false);
-                }}
-                className="w-full text-left px-2.5 py-1.5 rounded-lg text-sm font-medium hover:bg-muted transition-colors cursor-pointer flex items-center gap-2"
+                onClick={() => pickTask(task.id, task.title)}
+                className={cn(
+                  KANBAN_FLYOUT_ROW_CLASS,
+                  activeTaskId === task.id
+                    ? "bg-primary/10 text-primary"
+                    : "text-foreground",
+                )}
               >
-                {task.color && (
+                {task.color ? (
                   <span
                     className="size-2.5 rounded-full shrink-0"
                     style={{ backgroundColor: task.color }}
                   />
+                ) : (
+                  <span className="size-2.5 rounded-full shrink-0 bg-muted" />
                 )}
                 <span className="truncate">{task.title}</span>
               </button>
             ))
           )}
-          <button
-            onClick={() => setOpen(false)}
-            className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-muted-foreground hover:bg-muted transition-colors cursor-pointer mt-0.5"
-          >
-            Cancel
-          </button>
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <button
-      onClick={() => setOpen(true)}
-      className="flex items-center gap-1.5 border-2 border-dashed border-border/50 rounded-full px-3 py-1 text-sm text-muted-foreground hover:text-foreground hover:border-border transition-colors cursor-pointer"
-    >
-      <Target className="size-3.5" />
-      <span>Link task</span>
-    </button>
+      </KanbanFlyoutPanel>
+    </div>
   );
 }

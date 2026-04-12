@@ -1,10 +1,12 @@
 "use client";
 
 import { type ChangeEvent } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { useTimer, type Phase } from "@/stores/timerStore";
+import { useAuth } from "@/components/auth/SessionProvider";
 import { Settings } from "lucide-react";
 
 export default function Header() {
@@ -23,6 +25,7 @@ export default function Header() {
 }
 
 function SettingsPopover() {
+  const { user, signOut } = useAuth();
   const bellVolume = useTimer((s) => s.bellVolume);
   const durations = useTimer((s) => s.durations);
   const setDurations = useTimer((s) => s.setDurations);
@@ -105,6 +108,30 @@ function SettingsPopover() {
                 />
               </div>
             </div>
+          </div>
+
+          <div className="pt-2 border-t border-border space-y-2">
+            <div className="text-sm font-medium">Account</div>
+            {user ? (
+              <>
+                <p className="text-xs text-muted-foreground truncate" title={user.email}>
+                  {user.email}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => void signOut()}
+                >
+                  Sign out
+                </Button>
+              </>
+            ) : (
+              <Button variant="outline" size="sm" className="w-full" asChild>
+                <Link href="/auth/login">Sign in to sync</Link>
+              </Button>
+            )}
           </div>
         </div>
       </PopoverContent>

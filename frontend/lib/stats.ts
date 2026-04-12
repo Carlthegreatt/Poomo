@@ -1,64 +1,13 @@
-import { readJSON, writeJSON, generateId } from "@/lib/storage";
-import { STORAGE_KEYS } from "@/lib/constants";
+export type { FocusSession } from "@/lib/statsTypes";
+import type { FocusSession } from "@/lib/statsTypes";
 
-export interface FocusSession {
-  id: string;
-  startedAt: string;
-  endedAt: string;
-  phase: "focus" | "shortBreak" | "longBreak";
-  durationMs: number;
-  taskId: string | null;
-  taskTitle: string | null;
-}
-
-const DEFAULT_GOAL = 8;
-
-function readSessions(): FocusSession[] {
-  return readJSON<FocusSession[]>(STORAGE_KEYS.SESSIONS, []);
-}
-
-function writeSessions(sessions: FocusSession[]): void {
-  writeJSON(STORAGE_KEYS.SESSIONS, sessions);
-}
-
-export async function fetchSessions(): Promise<FocusSession[]> {
-  return readSessions().sort(
-    (a, b) => new Date(b.endedAt).getTime() - new Date(a.endedAt).getTime(),
-  );
-}
-
-export function logSession(
-  session: Omit<FocusSession, "id">,
-): FocusSession {
-  const sessions = readSessions();
-  const entry: FocusSession = { ...session, id: generateId() };
-  sessions.push(entry);
-  writeSessions(sessions);
-  return entry;
-}
-
-export async function clearSessions(): Promise<void> {
-  writeSessions([]);
-}
-
-export function getDailyGoal(): number {
-  if (typeof window === "undefined") return DEFAULT_GOAL;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.DAILY_GOAL);
-    if (!raw) return DEFAULT_GOAL;
-    const n = parseInt(raw, 10);
-    return Number.isFinite(n) && n > 0 ? n : DEFAULT_GOAL;
-  } catch {
-    return DEFAULT_GOAL;
-  }
-}
-
-export function setDailyGoal(goal: number): void {
-  localStorage.setItem(
-    STORAGE_KEYS.DAILY_GOAL,
-    String(Math.max(1, Math.floor(goal))),
-  );
-}
+export {
+  fetchSessions,
+  clearSessions,
+  logSession,
+  getDailyGoal,
+  setDailyGoal,
+} from "@/lib/data/statsRepo";
 
 function startOfDay(date: Date): Date {
   const d = new Date(date);
