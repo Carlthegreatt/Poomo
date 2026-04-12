@@ -18,8 +18,6 @@ import { buildContext } from "@/lib/ai/context";
 import { executeActions } from "@/lib/ai/executor";
 import { matchIntent } from "@/lib/ai/intents";
 import type { ChatAction } from "@/lib/ai/tools";
-import { useCalendar } from "@/stores/calendarStore";
-import { useKanban } from "@/stores/kanbanStore";
 
 const WIDGET_TYPES = new Set<ChatMessage["widget"]>([
   "timer",
@@ -31,17 +29,6 @@ const WIDGET_TYPES = new Set<ChatMessage["widget"]>([
 
 /** `navigation.type` stays `"reload"` until the next document load; only blank once per refresh. */
 let chatClearedForThisReloadDocument = false;
-
-function chatRequestHeaders(): Record<string, string> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  const token = process.env.NEXT_PUBLIC_POOMO_CHAT_API_SECRET;
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-  return headers;
-}
 
 /** True for F5 / address-bar reload; false for first visit and in-app route changes. */
 function isDocumentReload(): boolean {
@@ -86,8 +73,9 @@ export function useChat() {
         setMessages(loaded);
         messagesRef.current = loaded;
       }
-      useCalendar.getState().loadEvents();
-      useKanban.getState().loadBoard();
+      // Avoid preloading stores here: this layout effect runs before SessionProvider's
+      // `getUser` effect, so `getAuthUserId()` can still be null and we'd hit local repos
+      // while signed in. `bootstrapSession` + feature views + `buildContext` load data.
     }
   }, []);
 
@@ -143,7 +131,8 @@ export function useChat() {
 
         const response = await fetch("/api/chat", {
           method: "POST",
-          headers: chatRequestHeaders(),
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
           body: JSON.stringify({ messages: geminiMessages, context }),
           signal: abortRef.current.signal,
         });
@@ -175,11 +164,24 @@ export function useChat() {
             try {
               const event = JSON.parse(payload) as
                 | { type: "text_delta"; content: string }
+                | { type: "assistant_reset" }
                 | { type: "actions"; actions: ChatAction[] }
                 | { type: "widget"; widget: string }
                 | { type: "error"; message: string };
 
-              if (event.type === "text_delta") {
+              if (event.type === "assistant_reset") {
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  const last = updated[updated.length - 1];
+                  if (last?.role === "assistant") {
+                    updated[updated.length - 1] = {
+                      ...last,
+                      content: "",
+                    };
+                  }
+                  return updated;
+                });
+              } else if (event.type === "text_delta") {
                 setMessages((prev) => {
                   const updated = [...prev];
                   const last = updated[updated.length - 1];

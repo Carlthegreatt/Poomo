@@ -49,6 +49,7 @@ export default function Board() {
     columns,
     tasks,
     isLoading,
+    error,
     loadBoard,
     addColumn,
     reorderColumns,
@@ -86,13 +87,13 @@ export default function Board() {
       const data = active.data.current;
 
       if (data?.type === "task") {
-        const task = tasks.find((t) => t.id === active.id);
+        const task = useKanban.getState().tasks.find((t) => t.id === active.id);
         if (task) setActiveTask(task);
       } else if (data?.type === "column") {
         setActiveColumnId(active.id as string);
       }
     },
-    [tasks]
+    []
   );
 
   const handleDragOver = useCallback(
@@ -160,7 +161,7 @@ export default function Board() {
 
       if (activeData?.type === "task") {
         const activeColId = activeData.columnId as string;
-        const task = tasks.find((t) => t.id === active.id);
+        const task = useKanban.getState().tasks.find((t) => t.id === active.id);
         if (!task) return;
 
         if (overData?.type === "task") {
@@ -187,14 +188,7 @@ export default function Board() {
         }
       }
     },
-    [
-      tasks,
-      reorderColumns,
-      persistColumnOrder,
-      reorderTaskInColumn,
-      persistTaskOrder,
-      persistTaskMove,
-    ]
+    [reorderColumns, persistColumnOrder, reorderTaskInColumn, persistTaskOrder, persistTaskMove]
   );
 
   const [newColumnName, setNewColumnName] = useState("");
@@ -212,6 +206,17 @@ export default function Board() {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="size-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (error && columns.length === 0) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center gap-4 p-6 text-center">
+        <p className="text-sm text-muted-foreground max-w-md">{error}</p>
+        <Button type="button" variant="filled" onClick={() => loadBoard({ force: true })}>
+          Retry
+        </Button>
       </div>
     );
   }

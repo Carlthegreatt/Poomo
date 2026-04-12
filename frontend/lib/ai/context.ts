@@ -2,7 +2,7 @@ import { useTimer } from "@/stores/timerStore";
 import { useKanban } from "@/stores/kanbanStore";
 import { useCalendar } from "@/stores/calendarStore";
 import { useStats } from "@/stores/statsStore";
-import { fetchNotes } from "@/lib/notes";
+import { useNotes } from "@/stores/notesStore";
 
 export interface AppContext {
   /** Kanban column titles in board order (includes empty columns). */
@@ -45,21 +45,31 @@ const MAX_CONTEXT_EVENTS = 10;
 const MAX_CONTEXT_TASKS = 15;
 
 export async function buildContext(): Promise<AppContext> {
-  let { events } = useCalendar.getState();
-  let { tasks, columns } = useKanban.getState();
+  const calendarP = (async () => {
+    const cal = useCalendar.getState();
+    if (cal.events.length === 0 && !cal.isLoading) {
+      await cal.loadEvents();
+    }
+  })();
 
-  if (events.length === 0 && !useCalendar.getState().isLoading) {
-    await useCalendar.getState().loadEvents();
-    events = useCalendar.getState().events;
-  }
-  const kanban = useKanban.getState();
-  if (
-    (tasks.length === 0 || columns.length === 0) &&
-    !kanban.isLoading
-  ) {
-    await kanban.loadBoard();
-    ({ tasks, columns } = useKanban.getState());
-  }
+  const kanbanP = (async () => {
+    const k = useKanban.getState();
+    if (k.columns.length === 0 && !k.isLoading) {
+      await k.loadBoard();
+    }
+  })();
+
+  const notesP = (async () => {
+    if (!useNotes.getState().notesSyncedOnce) {
+      await useNotes.getState().loadNotes();
+    }
+  })();
+
+  await Promise.all([calendarP, kanbanP, notesP]);
+
+  const { events } = useCalendar.getState();
+  const { tasks, columns } = useKanban.getState();
+  const allNotes = useNotes.getState().notes;
 
   const timer = useTimer.getState();
   const stats = useStats.getState();
@@ -73,7 +83,6 @@ export async function buildContext(): Promise<AppContext> {
   const streaks = stats.getStreaks();
   const lifetime = stats.getLifetimeStats();
 
-  const allNotes = await fetchNotes();
   const notesForContext = [...allNotes]
     .sort(
       (a, b) =>

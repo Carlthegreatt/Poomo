@@ -48,17 +48,6 @@ const NAV_REGISTRY: Record<
   flashcards: { href: "/flashcards", icon: Layers, label: "Flashcards" },
 };
 
-/* All item IDs in their default order */
-const ALL_IDS = [
-  "chat",
-  "timer",
-  "board",
-  "calendar",
-  "notes",
-  "stats",
-  "flashcards",
-];
-
 /* ── Sortable reorder row ── */
 
 function SortableNavRow({

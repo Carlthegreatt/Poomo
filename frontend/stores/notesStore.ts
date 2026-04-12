@@ -9,10 +9,26 @@ import {
   type Note,
 } from "@/lib/notes";
 
+/** Coalesces concurrent `loadNotes` (e.g. bootstrap + chat `buildContext`). */
+let notesLoadInFlight: Promise<void> | null = null;
+
+/** Clears notes and sync flags so the next session refetches from the API. */
+export function resetNotesSessionData(): void {
+  notesLoadInFlight = null;
+  useNotes.setState({
+    notes: [],
+    activeNoteId: null,
+    isLoading: false,
+    notesSyncedOnce: false,
+  });
+}
+
 interface NotesState {
   notes: Note[];
   activeNoteId: string | null;
   isLoading: boolean;
+  /** True after the first `loadNotes` attempt finishes (success or error). */
+  notesSyncedOnce: boolean;
 
   loadNotes: () => Promise<void>;
   addNote: () => Promise<void>;
@@ -30,16 +46,28 @@ export const useNotes = create<NotesState>((set, get) => ({
   notes: [],
   activeNoteId: null,
   isLoading: false,
+  notesSyncedOnce: false,
 
   loadNotes: async () => {
-    set({ isLoading: true });
+    if (notesLoadInFlight) return notesLoadInFlight;
+
+    const run = (async () => {
+      set({ isLoading: true });
+      try {
+        const notes = await fetchNotes();
+        set({ notes, isLoading: false, notesSyncedOnce: true });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to load notes";
+        set({ isLoading: false, notesSyncedOnce: true });
+        toast.error(msg);
+      }
+    })();
+
+    notesLoadInFlight = run;
     try {
-      const notes = await fetchNotes();
-      set({ notes, isLoading: false });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to load notes";
-      set({ isLoading: false });
-      toast.error(msg);
+      await run;
+    } finally {
+      if (notesLoadInFlight === run) notesLoadInFlight = null;
     }
   },
 

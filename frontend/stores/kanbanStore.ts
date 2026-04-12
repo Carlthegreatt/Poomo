@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { toast } from "sonner";
+import { getAuthUserId } from "@/lib/data/authSession";
 import {
   fetchBoard,
   getTaskTypeLabels,
@@ -16,6 +17,24 @@ import {
   type KanbanTask,
 } from "@/lib/kanban";
 
+/** Coalesces concurrent loads and skips redundant fetches when columns are already hydrated. */
+let boardLoadInFlight: Promise<void> | null = null;
+/** User id for which `columns` were last loaded; avoids skipping fetch after account switch. */
+let boardHydratedForUserId: string | null = null;
+
+/** Clears board state and in-flight fetch so a new session always reloads from the API. */
+export function resetKanbanSessionData(): void {
+  boardLoadInFlight = null;
+  boardHydratedForUserId = null;
+  useKanban.setState({
+    columns: [],
+    tasks: [],
+    taskTypes: [],
+    isLoading: false,
+    error: null,
+  });
+}
+
 interface KanbanState {
   columns: KanbanColumn[];
   tasks: KanbanTask[];
@@ -23,7 +42,7 @@ interface KanbanState {
   isLoading: boolean;
   error: string | null;
 
-  loadBoard: () => Promise<void>;
+  loadBoard: (options?: { force?: boolean }) => Promise<void>;
   registerTaskType: (label: string) => Promise<void>;
   addColumn: (title: string) => Promise<void>;
   renameColumn: (id: string, title: string) => Promise<void>;
@@ -87,15 +106,51 @@ export const useKanban = create<KanbanState>((set, get) => ({
   isLoading: false,
   error: null,
 
-  loadBoard: async () => {
-    set({ isLoading: true, error: null });
+  loadBoard: async (options?: { force?: boolean }) => {
+    const force = options?.force ?? false;
+    const uid = getAuthUserId();
+    if (
+      !force &&
+      get().columns.length > 0 &&
+      uid != null &&
+      boardHydratedForUserId === uid
+    ) {
+      // Session bootstrap sets isLoading true before calling loadBoard; skipping fetch must
+      // still clear the spinner (same for any caller that forced loading).
+      if (get().isLoading) set({ isLoading: false });
+      return;
+    }
+    if (boardLoadInFlight) return boardLoadInFlight;
+
+    const run = (async () => {
+      const uidAtStart = getAuthUserId();
+      set({ isLoading: true, error: null });
+      try {
+        const { columns, tasks, task_types } = await fetchBoard();
+        if (getAuthUserId() !== uidAtStart) {
+          // Auth can flip while fetch is in flight (e.g. Board mounts before getUser resolves).
+          set({ isLoading: false });
+          return;
+        }
+        boardHydratedForUserId = getAuthUserId();
+        set({
+          columns,
+          tasks,
+          taskTypes: task_types,
+          isLoading: false,
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to load board";
+        set({ error: msg, isLoading: false });
+        toast.error(msg);
+      }
+    })();
+
+    boardLoadInFlight = run;
     try {
-      const { columns, tasks, task_types } = await fetchBoard();
-      set({ columns, tasks, taskTypes: task_types, isLoading: false });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to load board";
-      set({ error: msg, isLoading: false });
-      toast.error(msg);
+      await run;
+    } finally {
+      if (boardLoadInFlight === run) boardLoadInFlight = null;
     }
   },
 
@@ -232,10 +287,15 @@ export const useKanban = create<KanbanState>((set, get) => ({
         task_type: task.task_type,
         position,
       });
-      const taskTypes = await getTaskTypeLabels();
+      const trimmedType = task.task_type?.trim() || null;
+      const prevTypes = get().taskTypes;
+      const nextTaskTypes =
+        trimmedType && !prevTypes.includes(trimmedType)
+          ? [...prevTypes, trimmedType].sort()
+          : prevTypes;
       set((s) => ({
         tasks: s.tasks.map((t) => (t.id === tempId ? real : t)),
-        taskTypes,
+        taskTypes: nextTaskTypes,
       }));
     } catch {
       set((s) => ({ tasks: s.tasks.filter((t) => t.id !== tempId) }));

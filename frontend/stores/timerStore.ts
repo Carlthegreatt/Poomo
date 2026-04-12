@@ -155,13 +155,15 @@ export const useTimer = create<TimerState>((set, get) => ({
         ? new Date(phaseStartedAt)
         : new Date(endedAt.getTime() - phaseDuration);
 
-      logSession({
+      void logSession({
         startedAt: startedAt.toISOString(),
         endedAt: endedAt.toISOString(),
         phase: phaseMap[finishedPhase as keyof typeof phaseMap] ?? "focus",
         durationMs: phaseDuration,
         taskId: finishedPhase === "WORK" ? activeTaskId : null,
         taskTitle: finishedPhase === "WORK" ? activeTaskTitle : null,
+      }).catch(() => {
+        /* session log failed — non-blocking */
       });
 
       set((s) => {

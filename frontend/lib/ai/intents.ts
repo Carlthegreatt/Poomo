@@ -136,6 +136,167 @@ function matchSaveNoteIntent(text: string): IntentMatch | null {
   return null;
 }
 
+/** Map user phrasing ("to do list", "todo") to an actual kanban column title. */
+function findColumnForHint(
+  hintRaw: string,
+  orderedTitles: string[],
+): string | null {
+  if (orderedTitles.length === 0) return null;
+
+  let hint = hintRaw.trim().toLowerCase();
+  hint = hint.replace(/^(?:the|my|a|an)\s+/i, "");
+  hint = hint.replace(/\s+list$/i, "");
+  hint = hint.replace(/-/g, " ").replace(/\s+/g, " ").trim();
+  if (!hint) return orderedTitles[0] ?? null;
+
+  const candidates = orderedTitles.map((title) => {
+    const t = title
+      .trim()
+      .toLowerCase()
+      .replace(/-/g, " ")
+      .replace(/\s+/g, " ");
+    return { title, t };
+  });
+
+  for (const { title, t } of candidates) {
+    if (t === hint) return title;
+  }
+
+  for (const { title, t } of candidates) {
+    if (hint.length >= 2 && (t.includes(hint) || hint.includes(t))) {
+      return title;
+    }
+  }
+
+  const todoish =
+    hint === "to do" ||
+    hint === "todo" ||
+    hint === "to-do" ||
+    /^to\s+do\b/.test(hint);
+  if (todoish) {
+    const hit = candidates.find(({ t }) => t === "todo");
+    if (hit) return hit.title;
+  }
+
+  return null;
+}
+
+/** "Add work to my todo list" → create_task (no LLM). */
+function matchCreateTaskIntent(text: string): IntentMatch | null {
+  const t = text.trim();
+  const { columns } = useKanban.getState();
+  const ordered = [...columns].sort((a, b) => a.position - b.position);
+  const orderedTitles = ordered.map((c) => c.title);
+  if (orderedTitles.length === 0) return null;
+
+  const run = (title: string, column: string): IntentMatch => ({
+    response: `Task created: ${title}.`,
+    execute: () =>
+      executeAction({
+        tool: "create_task",
+        args: { title, column },
+      }),
+    widget: "board",
+  });
+
+  const tryPair = (titlePart: string, destRaw: string): IntentMatch | null => {
+    const title = titlePart.trim();
+    const dest = destRaw.trim();
+    if (!title || title.length > 200) return null;
+    const column = findColumnForHint(dest, orderedTitles);
+    if (!column) return null;
+    return run(title, column);
+  };
+
+  let m = t.match(
+    /^\s*i\s+(?:want to|need to)\s+add\s+(.+?)\s+to\s+(?:my\s+|the\s+)?(.+)$/i,
+  );
+  if (m) {
+    const hit = tryPair(m[1] ?? "", m[2] ?? "");
+    if (hit) return hit;
+  }
+
+  m = t.match(/^\s*add\s+(.+?)\s+to\s+(?:my\s+|the\s+)?(.+)$/i);
+  if (m) {
+    const hit = tryPair(m[1] ?? "", m[2] ?? "");
+    if (hit) return hit;
+  }
+
+  m = t.match(/^\s*put\s+(.+?)\s+on\s+(?:my\s+|the\s+)?(.+)$/i);
+  if (m) {
+    const hit = tryPair(m[1] ?? "", m[2] ?? "");
+    if (hit) return hit;
+  }
+
+  m = t.match(
+    /^\s*(?:create|add)\s+task\s+(.+?)\s+to\s+(?:my\s+|the\s+)?(.+)$/i,
+  );
+  if (m) {
+    const hit = tryPair(m[1] ?? "", m[2] ?? "");
+    if (hit) return hit;
+  }
+
+  m = t.match(
+    /^\s*(?:create|new)\s+task\s+(.+?)\s+in\s+(?:my\s+|the\s+)?(.+)$/i,
+  );
+  if (m) {
+    const hit = tryPair(m[1] ?? "", m[2] ?? "");
+    if (hit) return hit;
+  }
+
+  return null;
+}
+
+/** WORK timer with optional custom minutes — must run before broad `\bgrind\b` action intents. */
+function matchStartWorkWithDuration(text: string): IntentMatch | null {
+  const t = text.trim();
+
+  const ok = (minutes: number): minutes is number =>
+    Number.isFinite(minutes) && minutes >= 1 && minutes <= 480;
+
+  const run = (minutes: number): IntentMatch => ({
+    response: `Starting a ${minutes}-minute focus session.`,
+    execute: () =>
+      executeAction({
+        tool: "start_timer",
+        args: { phase: "WORK", minutes },
+      }),
+    widget: "timer",
+  });
+
+  let m = t.match(
+    /^\s*i\s+(?:want to|need to|wanna)\s+grind\s+for\s+(\d+)\s*(?:min|minutes?|m)\b/i,
+  );
+  if (m && ok(parseInt(m[1], 10))) return run(parseInt(m[1], 10));
+
+  m = t.match(
+    /^\s*(?:i'?ll|ill)\s+grind\s+for\s+(\d+)\s*(?:min|minutes?|m)\b/i,
+  );
+  if (m && ok(parseInt(m[1], 10))) return run(parseInt(m[1], 10));
+
+  m = t.match(
+    /^\s*(?:let'?s\s+)?grind(?:\s+for)?\s+(\d+)\s*(?:min|minutes?|m)\b/i,
+  );
+  if (m && ok(parseInt(m[1], 10))) return run(parseInt(m[1], 10));
+
+  m = t.match(
+    /^\s*(?:(?:let'?s\s+)?(?:focus|work|study)|(?:start|begin)\s+(?:a\s+)?(?:focus|work|(?:pomodoro\s+)?session))\s+for\s+(\d+)\s*(?:min|minutes?|m)\b/i,
+  );
+  if (m && ok(parseInt(m[1], 10))) return run(parseInt(m[1], 10));
+
+  m = t.match(
+    /^\s*(\d+)\s*(?:min|minutes?|m)\b(?:\s+of)?\s+(?:grind|focus|work|deep\s+work|pomodoro)(?:\s+session)?\b/i,
+  );
+  if (m && ok(parseInt(m[1], 10))) return run(parseInt(m[1], 10));
+
+  m = t.match(
+    /^\s*(?:(?:start|begin|run)\s+)?(?:a\s+)?(?:pomodoro|focus\s+session|work\s+session)\s+for\s+(\d+)\s*(?:min|minutes?|m)\b/i,
+  );
+  if (m && ok(parseInt(m[1], 10))) return run(parseInt(m[1], 10));
+
+  return null;
+}
+
 const ACTION_INTENTS: ActionIntent[] = [
   {
     type: "action",
@@ -153,8 +314,15 @@ const ACTION_INTENTS: ActionIntent[] = [
   },
   {
     type: "action",
+    pattern: /^\s*(?:let'?s\s+)?grind(?:\s+session)?\s*\.?\s*$/i,
+    action: { tool: "start_timer", args: { phase: "WORK" } },
+    response: "Starting a focus session.",
+    widget: "timer",
+  },
+  {
+    type: "action",
     pattern:
-      /\b(start|begin|run|launch)\b.*(focus|work|pomodoro|timer|session)|\b(let'?s|time to|i want to)\s+(focus|work|study)\b/i,
+      /\b(start|begin|run|launch)\b.*(focus|work|pomodoro|timer|session)|\b(let'?s|time to|i want to)\s+(focus|work|study|grind)\b/i,
     action: { tool: "start_timer", args: { phase: "WORK" } },
     response: "Starting a focus session.",
     widget: "timer",
@@ -337,6 +505,12 @@ export function matchIntent(text: string): IntentMatch | null {
 
   const saveNote = matchSaveNoteIntent(normalized);
   if (saveNote) return saveNote;
+
+  const createTask = matchCreateTaskIntent(normalized);
+  if (createTask) return createTask;
+
+  const workWithDuration = matchStartWorkWithDuration(normalized);
+  if (workWithDuration) return workWithDuration;
 
   for (const intent of ACTION_INTENTS) {
     if (intent.pattern.test(normalized)) {

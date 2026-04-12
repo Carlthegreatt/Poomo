@@ -36,10 +36,6 @@ export default function TaskPicker({ embedInCard = false }: TaskPickerProps) {
     void loadBoard();
   }, [loadBoard]);
 
-  useEffect(() => {
-    if (open) void loadBoard();
-  }, [open, loadBoard]);
-
   const pickTask = (id: string, title: string) => {
     setActiveTask(id, title);
     setOpen(false);

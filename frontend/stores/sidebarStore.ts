@@ -1,6 +1,12 @@
 import { create } from "zustand";
 import { readJSON, writeJSON } from "@/lib/storage";
 import { STORAGE_KEYS } from "@/lib/constants";
+import { isCloudDataBackend } from "@/lib/data/authSession";
+import { mergeSidebarOrderAction } from "@/lib/actions/preferences";
+import {
+  getPreferencesCache,
+  patchPreferencesCache,
+} from "@/lib/data/preferencesCache";
 
 export interface SidebarItem {
   id: string;
@@ -21,11 +27,22 @@ const DEFAULT_ITEMS: SidebarItem[] = [
 interface SidebarState {
   items: SidebarItem[];
   loadItems: () => void;
+  hydrateFromCloud: (saved: SidebarItem[]) => void;
   reorder: (activeId: string, overId: string) => void;
   togglePin: (id: string) => void;
 }
 
 function persist(items: SidebarItem[]) {
+  if (isCloudDataBackend()) {
+    void mergeSidebarOrderAction(items)
+      .then((result) => {
+        if (result.ok) {
+          patchPreferencesCache({ sidebar_order: items });
+        }
+      })
+      .catch(() => {});
+    return;
+  }
   writeJSON(STORAGE_KEYS.SIDEBAR_ORDER, items);
 }
 
@@ -33,9 +50,17 @@ export const useSidebar = create<SidebarState>((set, get) => ({
   items: DEFAULT_ITEMS,
 
   loadItems: () => {
+    if (isCloudDataBackend()) {
+      const order = getPreferencesCache()?.sidebar_order;
+      if (order && order.length > 0) {
+        get().hydrateFromCloud(order);
+      } else {
+        set({ items: DEFAULT_ITEMS });
+      }
+      return;
+    }
     const saved = readJSON<SidebarItem[] | null>(STORAGE_KEYS.SIDEBAR_ORDER, null);
     if (saved && Array.isArray(saved) && saved.length > 0) {
-      // Merge: add any new default items that don't exist in saved
       const savedIds = new Set(saved.map((s) => s.id));
       const merged = [
         ...saved,
@@ -45,6 +70,15 @@ export const useSidebar = create<SidebarState>((set, get) => ({
     } else {
       set({ items: DEFAULT_ITEMS });
     }
+  },
+
+  hydrateFromCloud: (saved) => {
+    const savedIds = new Set(saved.map((s) => s.id));
+    const merged = [
+      ...saved,
+      ...DEFAULT_ITEMS.filter((d) => !savedIds.has(d.id)),
+    ];
+    set({ items: merged });
   },
 
   reorder: (activeId, overId) => {

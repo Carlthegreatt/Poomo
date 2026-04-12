@@ -25,7 +25,7 @@ import CalendarToolbar from "./CalendarToolbar";
 import EventCard, { eventStyleGetter } from "./EventCard";
 import EventModal from "./EventModal";
 import { useCalendar, type CalendarEntry } from "@/stores/calendarStore";
-import { fetchBoard } from "@/lib/kanban";
+import { useKanban } from "@/stores/kanbanStore";
 import { EVENT_COLORS } from "@/lib/calendar";
 
 const locales = { "en-US": enUS };
@@ -56,9 +56,20 @@ export default function CalendarView() {
   const calendarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    loadEvents();
-    fetchBoard().then(({ tasks }) => setKanbanTasks(tasks));
-  }, [loadEvents, setKanbanTasks]);
+    void loadEvents();
+  }, [loadEvents]);
+
+  useEffect(() => {
+    void useKanban.getState().loadBoard();
+  }, []);
+
+  useEffect(() => {
+    const syncKanban = () => {
+      setKanbanTasks(useKanban.getState().tasks);
+    };
+    syncKanban();
+    return useKanban.subscribe(syncKanban);
+  }, [setKanbanTasks]);
 
   const entries = useMemo(
     () => getEntries(),
