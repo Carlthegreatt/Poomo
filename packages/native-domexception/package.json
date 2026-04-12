@@ -1,0 +1,8 @@
+{
+  "name": "poomo-native-domexception",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Re-exports globalThis.DOMException to replace deprecated node-domexception in transitive deps",
+  "main": "index.cjs",
+  "type": "commonjs"
+}

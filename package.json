@@ -9,6 +9,9 @@
   "engines": {
     "node": ">=20.11.0"
   },
+  "overrides": {
+    "node-domexception": "file:packages/native-domexception"
+  },
   "dependencies": {
     "react-icons": "^5.5.0"
   }
