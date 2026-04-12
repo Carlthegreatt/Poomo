@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-const emailField = z.string().trim().min(1, "Enter your email").email("Enter a valid email");
+const emailField = z
+  .string()
+  .trim()
+  .min(1, "Enter your email")
+  .email("Enter a valid email");
 
 /** Password rules: min 8, max 72, at least one letter and one digit. */
 export const authPasswordValueSchema = z
