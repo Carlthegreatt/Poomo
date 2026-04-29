@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { generateId } from "@/lib/storage";
-import type { Note } from "@/lib/notesModel";
+import type { Note } from "@/lib/models/notes";
 import { requireDataUserId } from "@/lib/data/cloud/supabaseDataUser";
+import { NOTES_FETCH_LIMIT } from "@/lib/data/fetchLimits";
 
 function mapNote(row: {
   id: string;
@@ -27,14 +28,15 @@ function mapNote(row: {
 export async function fetchNotesCloud(
   supabase: SupabaseClient,
 ): Promise<Note[]> {
-  const userId = await requireDataUserId(supabase);
+  // RLS policies filter by auth.uid() automatically.
+  // No need for requireDataUserId() — avoids a getUser() race during bootstrap.
   const { data, error } = await supabase
     .from("notes")
     .select(
       "id,title,content,color,pinned,position,created_at,updated_at",
     )
-    .eq("user_id", userId)
-    .order("position");
+    .order("position")
+    .limit(NOTES_FETCH_LIMIT);
   if (error) throw error;
   return (data ?? []).map((r) => mapNote(r as Parameters<typeof mapNote>[0]));
 }
@@ -117,13 +119,13 @@ export async function saveNoteOrderCloud(
   supabase: SupabaseClient,
   notes: Note[],
 ): Promise<void> {
-  const userId = await requireDataUserId(supabase);
-  for (let i = 0; i < notes.length; i++) {
-    const { error } = await supabase
-      .from("notes")
-      .update({ position: i, updated_at: new Date().toISOString() })
-      .eq("id", notes[i].id)
-      .eq("user_id", userId);
-    if (error) throw error;
-  }
+  await requireDataUserId(supabase);
+  const p_updates = notes.map((n, position) => ({
+    id: n.id,
+    position,
+  }));
+  const { error } = await supabase.rpc("batch_update_notes_positions", {
+    p_updates,
+  });
+  if (error) throw error;
 }

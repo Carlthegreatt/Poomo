@@ -1,6 +1,4 @@
 import { create } from "zustand";
-import { readJSON, writeJSON } from "@/lib/storage";
-import { STORAGE_KEYS } from "@/lib/constants";
 import { isCloudDataBackend } from "@/lib/data/authSession";
 import { mergeSidebarOrderAction } from "@/lib/actions/preferences";
 import {
@@ -33,17 +31,14 @@ interface SidebarState {
 }
 
 function persist(items: SidebarItem[]) {
-  if (isCloudDataBackend()) {
-    void mergeSidebarOrderAction(items)
-      .then((result) => {
-        if (result.ok) {
-          patchPreferencesCache({ sidebar_order: items });
-        }
-      })
-      .catch(() => {});
-    return;
-  }
-  writeJSON(STORAGE_KEYS.SIDEBAR_ORDER, items);
+  if (!isCloudDataBackend()) return;
+  void mergeSidebarOrderAction(items)
+    .then((result) => {
+      if (result.ok) {
+        patchPreferencesCache({ sidebar_order: items });
+      }
+    })
+    .catch(() => {});
 }
 
 export const useSidebar = create<SidebarState>((set, get) => ({
@@ -59,17 +54,7 @@ export const useSidebar = create<SidebarState>((set, get) => ({
       }
       return;
     }
-    const saved = readJSON<SidebarItem[] | null>(STORAGE_KEYS.SIDEBAR_ORDER, null);
-    if (saved && Array.isArray(saved) && saved.length > 0) {
-      const savedIds = new Set(saved.map((s) => s.id));
-      const merged = [
-        ...saved,
-        ...DEFAULT_ITEMS.filter((d) => !savedIds.has(d.id)),
-      ];
-      set({ items: merged });
-    } else {
-      set({ items: DEFAULT_ITEMS });
-    }
+    set({ items: DEFAULT_ITEMS });
   },
 
   hydrateFromCloud: (saved) => {

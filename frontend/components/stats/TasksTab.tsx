@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { ListChecks } from "lucide-react";
 import { useStats } from "@/stores/statsStore";
-import { TASK_COLORS } from "@/lib/kanban";
+import { TASK_COLORS } from "@/lib/models/kanban";
 
 function formatMinutes(ms: number): string {
   const totalMin = Math.round(ms / 60_000);

@@ -12,7 +12,7 @@ import {
   TASK_PRIORITY_OPTIONS,
   type KanbanTask,
   type KanbanTaskPriority,
-} from "@/lib/kanban";
+} from "@/lib/models/kanban";
 import { Input } from "@/components/ui/input";
 import TaskDueAndTypeFields from "./TaskDueAndTypeFields";
 import { KanbanFlyoutSelect } from "./KanbanFlyoutMenu";

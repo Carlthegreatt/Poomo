@@ -6,8 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Plus, Check } from "lucide-react";
 import { useKanban } from "@/stores/kanbanStore";
-import { TASK_COLORS, TASK_PRIORITY_OPTIONS } from "@/lib/kanban";
-import type { KanbanTaskPriority } from "@/lib/kanban";
+import { TASK_COLORS, TASK_PRIORITY_OPTIONS } from "@/lib/models/kanban";
+import type { KanbanTaskPriority } from "@/lib/models/kanban";
 import TaskDueAndTypeFields from "./TaskDueAndTypeFields";
 import { KanbanFlyoutSelect } from "./KanbanFlyoutMenu";
 

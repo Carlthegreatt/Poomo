@@ -31,7 +31,7 @@ import { Button } from "@/components/ui/button";
 import { useNotes } from "@/stores/notesStore";
 import NoteEditor from "./NoteEditor";
 import { cn } from "@/lib/utils";
-import type { Note } from "@/lib/notes";
+import type { Note } from "@/lib/models/notes";
 
 function formatDate(iso: string): string {
   const date = new Date(iso);

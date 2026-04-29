@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { toast } from "sonner";
-import { logSession } from "@/lib/stats";
+import { logSession } from "@/lib/data/statsRepo";
 
 let completionTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
@@ -73,8 +73,8 @@ export const useTimer = create<TimerState>((set, get) => ({
   phaseStartedAt: undefined,
   cycleCount: 0,
   durations: {
-    WORK: 250 * 6_000,
-    BREAK_SHORT: 50 * 6_000,
+    WORK: 25 * 60_000,
+    BREAK_SHORT: 5 * 60_000,
     BREAK_LONG: 15 * 60_000,
   },
   autoAdvance: true,

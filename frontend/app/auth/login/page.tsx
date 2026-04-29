@@ -7,6 +7,7 @@ import {
   signInWithPasswordAction,
   signUpWithPasswordAction,
 } from "@/lib/actions/auth";
+import { useAuth } from "@/components/auth/SessionProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -18,6 +19,7 @@ type Tab = "signin" | "signup";
 
 export default function AuthLoginPage() {
   const router = useRouter();
+  const { refreshSession } = useAuth();
   const [pending, startTransition] = useTransition();
   const [tab, setTab] = useState<Tab>("signin");
 
@@ -53,6 +55,7 @@ export default function AuthLoginPage() {
           setPwError(result.message);
           return;
         }
+        await refreshSession();
         router.push("/");
         router.refresh();
       } catch {
@@ -86,6 +89,7 @@ export default function AuthLoginPage() {
           return;
         }
         if (result.hasSession) {
+          await refreshSession();
           router.push("/");
           router.refresh();
           return;

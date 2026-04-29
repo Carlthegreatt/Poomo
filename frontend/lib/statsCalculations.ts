@@ -1,13 +1,9 @@
-export type { FocusSession } from "@/lib/statsTypes";
-import type { FocusSession } from "@/lib/statsTypes";
-
-export {
-  fetchSessions,
-  clearSessions,
-  logSession,
-  getDailyGoal,
-  setDailyGoal,
-} from "@/lib/data/statsRepo";
+/**
+ * Pure computation functions for focus session statistics.
+ * No side effects — operates on arrays of FocusSession passed in.
+ */
+import type { FocusSession } from "@/lib/models/stats";
+export type { FocusSession };
 
 function startOfDay(date: Date): Date {
   const d = new Date(date);

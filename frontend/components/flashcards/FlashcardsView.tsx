@@ -37,8 +37,8 @@ import { Button } from "@/components/ui/button";
 import { useFlashcards } from "@/stores/flashcardsStore";
 import FlashcardCard from "./FlashcardCard";
 import { cn } from "@/lib/utils";
-import { DECK_COLORS } from "@/lib/flashcards";
-import type { FlashcardDeck, Flashcard } from "@/lib/flashcards";
+import { DECK_COLORS } from "@/lib/models/flashcards";
+import type { FlashcardDeck, Flashcard } from "@/lib/models/flashcards";
 
 /* ── Helpers ── */
 

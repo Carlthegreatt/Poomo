@@ -12,12 +12,10 @@ export type FetchedProfilePreferences = {
 export async function fetchProfilePreferences(
   supabase: SupabaseClient,
 ): Promise<FetchedProfilePreferences> {
-  const userId = await requireDataUserId(supabase);
   const { data, error } = await supabase
     .from("profiles")
     .select("preferences")
-    .eq("id", userId)
-    .single();
+    .maybeSingle();
   if (error) throw error;
   const raw = (data?.preferences ?? {}) as Record<string, unknown>;
   const prefs: ProfilePreferences = {
@@ -38,20 +36,51 @@ export async function mergeProfilePreferences(
   partial: ProfilePreferences,
 ): Promise<void> {
   const userId = await requireDataUserId(supabase);
-  const { data: row, error: readErr } = await supabase
-    .from("profiles")
-    .select("preferences")
-    .eq("id", userId)
-    .single();
-  if (readErr) throw readErr;
-  const prev = (row?.preferences ?? {}) as Record<string, unknown>;
-  const next = { ...prev, ...partial };
-  const { error } = await supabase
-    .from("profiles")
-    .update({
-      preferences: next,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", userId);
+  const now = new Date().toISOString();
+
+  // Strip undefined values from partial so they don't overwrite existing keys
+  const cleanPartial: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(partial)) {
+    if (v !== undefined) cleanPartial[k] = v;
+  }
+
+  // Atomic merge using Postgres jsonb || operator via raw SQL (RPC)
+  // This prevents the read-then-write race when multiple tabs update simultaneously.
+  const { error } = await supabase.rpc("merge_profile_preferences", {
+    p_user_id: userId,
+    p_partial: cleanPartial,
+    p_now: now,
+  });
+
+  // Fallback: if the RPC doesn't exist yet, use the old read-then-write pattern
+  if (error?.code === "42883" || error?.message?.includes("merge_profile_preferences")) {
+    const { data: row, error: readErr } = await supabase
+      .from("profiles")
+      .select("preferences")
+      .eq("id", userId)
+      .maybeSingle();
+    if (readErr) throw readErr;
+    const prev = (row?.preferences ?? {}) as Record<string, unknown>;
+    const next = { ...prev, ...cleanPartial };
+    if (!row) {
+      const { error: insErr } = await supabase.from("profiles").insert({
+        id: userId,
+        preferences: next,
+        updated_at: now,
+      });
+      if (insErr) throw insErr;
+      return;
+    }
+    const { error: upErr } = await supabase
+      .from("profiles")
+      .update({
+        preferences: next,
+        updated_at: now,
+      })
+      .eq("id", userId);
+    if (upErr) throw upErr;
+    return;
+  }
+
   if (error) throw error;
 }

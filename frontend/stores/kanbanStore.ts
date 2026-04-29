@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { toast } from "sonner";
-import { getAuthUserId } from "@/lib/data/authSession";
+import { getAuthUserId, waitForAuthHydration } from "@/lib/data/authSession";
+import { toUserMessage } from "@/lib/toUserMessage";
 import {
   fetchBoard,
   getTaskTypeLabels,
@@ -13,9 +14,8 @@ import {
   deleteTask as apiDeleteTask,
   batchUpdateColumnPositions,
   batchUpdateTaskPositions,
-  type KanbanColumn,
-  type KanbanTask,
-} from "@/lib/kanban";
+} from "@/lib/data/kanbanRepo";
+import type { KanbanColumn, KanbanTask } from "@/lib/models/kanban";
 
 /** Coalesces concurrent loads and skips redundant fetches when columns are already hydrated. */
 let boardLoadInFlight: Promise<void> | null = null;
@@ -60,7 +60,7 @@ interface KanbanState {
       due_time?: string;
       priority?: KanbanTask["priority"];
       task_type?: string | null;
-    }
+    },
   ) => Promise<void>;
   editTask: (
     id: string,
@@ -75,18 +75,14 @@ interface KanbanState {
         | "priority"
         | "task_type"
       >
-    >
+    >,
   ) => Promise<void>;
   removeTask: (id: string) => Promise<void>;
-  moveTask: (
-    taskId: string,
-    toColumnId: string,
-    newIndex: number
-  ) => void;
+  moveTask: (taskId: string, toColumnId: string, newIndex: number) => void;
   reorderTaskInColumn: (
     columnId: string,
     activeId: string,
-    overId: string
+    overId: string,
   ) => void;
   persistTaskOrder: (columnId: string) => Promise<void>;
   /** Persist after cross-column drag; `fromColumnId` is the column where the drag started. */
@@ -108,6 +104,7 @@ export const useKanban = create<KanbanState>((set, get) => ({
 
   loadBoard: async (options?: { force?: boolean }) => {
     const force = options?.force ?? false;
+    await waitForAuthHydration();
     const uid = getAuthUserId();
     if (
       !force &&
@@ -140,7 +137,7 @@ export const useKanban = create<KanbanState>((set, get) => ({
           isLoading: false,
         });
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Failed to load board";
+        const msg = toUserMessage(err, "Failed to load board");
         set({ error: msg, isLoading: false });
         toast.error(msg);
       }
@@ -201,7 +198,7 @@ export const useKanban = create<KanbanState>((set, get) => ({
     } catch {
       set((s) => ({
         columns: s.columns.map((c) =>
-          c.id === id ? { ...c, title: prev.title } : c
+          c.id === id ? { ...c, title: prev.title } : c,
         ),
       }));
       toast.error("Failed to rename column");

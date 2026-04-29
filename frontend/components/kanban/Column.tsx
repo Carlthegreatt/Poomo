@@ -11,7 +11,7 @@ import { useDroppable } from "@dnd-kit/core";
 import TaskCard from "./TaskCard";
 import TaskForm from "./TaskForm";
 import ColumnHeader from "./ColumnHeader";
-import type { KanbanColumn, KanbanTask } from "@/lib/kanban";
+import type { KanbanColumn, KanbanTask } from "@/lib/models/kanban";
 
 const MIN_WIDTH = 240;
 const MAX_WIDTH = 600;

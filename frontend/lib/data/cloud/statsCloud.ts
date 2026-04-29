@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { generateId } from "@/lib/storage";
-import type { FocusSession } from "@/lib/statsTypes";
+import type { FocusSession } from "@/lib/models/stats";
 import { focusSessionFromRow, focusSessionToRow } from "@/lib/data/mappers";
 import {
   getPreferencesCache,
@@ -8,20 +8,27 @@ import {
 } from "@/lib/data/preferencesCache";
 import { mergeProfilePreferences } from "@/lib/data/cloud/profileCloud";
 import { requireDataUserId } from "@/lib/data/cloud/supabaseDataUser";
+import {
+  FOCUS_SESSION_LOOKBACK_MONTHS,
+  FOCUS_SESSIONS_MAX_ROWS,
+} from "@/lib/data/fetchLimits";
 
 const DEFAULT_GOAL = 8;
 
 export async function fetchSessionsCloud(
   supabase: SupabaseClient,
 ): Promise<FocusSession[]> {
-  const userId = await requireDataUserId(supabase);
+  // RLS policies filter by auth.uid() automatically.
+  const lookback = new Date();
+  lookback.setMonth(lookback.getMonth() - FOCUS_SESSION_LOOKBACK_MONTHS);
   const { data, error } = await supabase
     .from("focus_sessions")
     .select(
       "id,started_at,ended_at,phase,duration_ms,task_id,task_title",
     )
-    .eq("user_id", userId)
-    .order("ended_at", { ascending: false });
+    .gte("ended_at", lookback.toISOString())
+    .order("ended_at", { ascending: false })
+    .limit(FOCUS_SESSIONS_MAX_ROWS);
   if (error) throw error;
   return (data ?? []).map((r) =>
     focusSessionFromRow(

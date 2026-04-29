@@ -1,6 +1,10 @@
 import { createBrowserClient } from "@supabase/ssr";
 
+let browserSupabaseClient: ReturnType<typeof createBrowserClient> | null = null;
+
 export function createBrowserSupabase() {
+  if (browserSupabaseClient) return browserSupabaseClient;
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) {
@@ -9,12 +13,18 @@ export function createBrowserSupabase() {
         "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY",
       );
     }
-    return createBrowserClient(
+    console.warn(
+      "[supabase/client] Using placeholder Supabase config. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+    );
+    browserSupabaseClient = createBrowserClient(
       "http://127.0.0.1:54321",
       "public-anon-key-placeholder",
     );
+    return browserSupabaseClient;
   }
-  return createBrowserClient(url, key);
+
+  browserSupabaseClient = createBrowserClient(url, key);
+  return browserSupabaseClient;
 }
 
 /** Shared alias for data repos (same singleton behavior as `createBrowserSupabase`). */

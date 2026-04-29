@@ -4,8 +4,7 @@ import type {
   KanbanBoardSnapshot,
   KanbanColumn,
   KanbanTask,
-} from "@/lib/kanbanModel";
-import { DEFAULT_TASK_TYPE_LABELS } from "@/lib/kanbanModel";
+} from "@/lib/models/kanban";
 import { requireDataUserId } from "@/lib/data/cloud/supabaseDataUser";
 
 function mapColumn(row: {
@@ -118,29 +117,14 @@ function mapTask(row: {
   };
 }
 
-async function ensureDefaultTaskTypes(
-  supabase: SupabaseClient,
-  userId: string,
-): Promise<void> {
-  const { data: existing } = await supabase
-    .from("task_type_labels")
-    .select("label")
-    .eq("user_id", userId)
-    .limit(1);
-  if (existing && existing.length > 0) return;
-  const rows = DEFAULT_TASK_TYPE_LABELS.map((label) => ({
-    user_id: userId,
-    label,
-  }));
-  const { error } = await supabase.from("task_type_labels").insert(rows);
-  if (error) throw error;
-}
-
+/**
+ * Default task type seeding is handled by the `fetch_kanban_snapshot` RPC.
+ * This function just reads the existing labels.
+ */
 async function fetchTaskTypes(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<string[]> {
-  await ensureDefaultTaskTypes(supabase, userId);
   const { data, error } = await supabase
     .from("task_type_labels")
     .select("label")
@@ -183,7 +167,8 @@ export async function getTaskTypeLabelsCloud(
 export async function fetchBoardCloud(
   supabase: SupabaseClient,
 ): Promise<KanbanBoardSnapshot> {
-  await requireDataUserId(supabase);
+  // The fetch_kanban_snapshot RPC uses auth.uid() internally via RLS.
+  // No need for requireDataUserId() here — avoids a getUser() roundtrip race during bootstrap.
   const { data, error } = await supabase.rpc("fetch_kanban_snapshot");
   if (error) throw error;
   return parseRpcSnapshot(data);

@@ -11,21 +11,24 @@ import {
 } from "react";
 import type { User } from "@supabase/supabase-js";
 import { createBrowserSupabase } from "@/lib/supabase/client";
-import { setAuthSessionState } from "@/lib/data/authSession";
+import {
+  setAuthHydrationInFlight,
+  getAuthUserId,
+  setAuthSessionState,
+} from "@/lib/data/authSession";
 import {
   resetPreferencesCache,
   getPreferencesCache,
   patchPreferencesCache,
 } from "@/lib/data/preferencesCache";
 import { fetchProfilePreferences } from "@/lib/data/cloud/profileCloud";
-import { tryImportLocalToCloud } from "@/lib/data/importLocalToCloud";
 import { useKanban } from "@/stores/kanbanStore";
 import { useStats } from "@/stores/statsStore";
 import { useCalendar } from "@/stores/calendarStore";
 import { useNotes } from "@/stores/notesStore";
 import { useFlashcards } from "@/stores/flashcardsStore";
 import { useSidebar } from "@/stores/sidebarStore";
-import { getDailyGoal } from "@/lib/stats";
+import { getDailyGoal } from "@/lib/data/statsRepo";
 import { resetClientStoresForAuthChange } from "@/lib/data/resetSessionStores";
 import { signOutAction } from "@/lib/actions/auth";
 
@@ -33,9 +36,11 @@ type AuthContextValue = {
   user: User | null;
   ready: boolean;
   signOut: () => Promise<void>;
+  refreshSession: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+let bootstrapInFlight: Promise<void> | null = null;
 
 function applyPreferencesToStores() {
   const prefs = getPreferencesCache();
@@ -48,21 +53,14 @@ function applyPreferencesToStores() {
   }
 }
 
-async function bootstrapSession(userId: string) {
+async function bootstrapSession() {
   resetClientStoresForAuthChange();
-  // Do not set domain `isLoading` here: profile fetch + local→cloud import can take a long
-  // time (or stall on network). Each store sets loading when its own fetch starts; otherwise
-  // every tab shows a spinner for work that is not yet hitting the board/notes/etc. APIs.
+  // Do not set domain `isLoading` here: profile fetch can take time or stall on network.
+  // Each store sets loading when its own fetch starts; otherwise every tab shows a spinner
+  // for work that is not yet hitting the board/notes/etc. APIs.
   const supabase = createBrowserSupabase();
   const first = await fetchProfilePreferences(supabase).catch(() => null);
   if (first) applyPreferencesToStores();
-  const prefsDirty = await tryImportLocalToCloud(supabase, userId, {
-    prefetchedRawPreferences: first?.rawPreferences,
-  }).catch(() => false);
-  if (prefsDirty) {
-    await fetchProfilePreferences(supabase).catch(() => {});
-    applyPreferencesToStores();
-  }
   await Promise.all([
     useKanban.getState().loadBoard(),
     useStats.getState().loadSessions(),
@@ -70,6 +68,21 @@ async function bootstrapSession(userId: string) {
     useNotes.getState().loadNotes(),
     useFlashcards.getState().loadDecks(),
   ]);
+}
+
+function bootstrapSessionOnce(): Promise<void> {
+  if (bootstrapInFlight) return bootstrapInFlight;
+
+  const run = bootstrapSession();
+  bootstrapInFlight = run;
+
+  void run.finally(() => {
+    if (bootstrapInFlight === run) {
+      bootstrapInFlight = null;
+    }
+  });
+
+  return run;
 }
 
 export function SessionProvider({ children }: { children: ReactNode }) {
@@ -82,21 +95,59 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     resetPreferencesCache();
     resetClientStoresForAuthChange();
+    bootstrapInFlight = null;
+    setAuthHydrationInFlight(null);
     setAuthSessionState(null);
     setUser(null);
     useSidebar.getState().loadItems();
+  }, []);
+
+  const refreshSession = useCallback(async () => {
+    const supabase = createBrowserSupabase();
+
+    const hydration = (async () => {
+      const {
+        data: { user: nextUser },
+      } = await supabase.auth.getUser();
+
+      if (!nextUser) {
+        bootstrapInFlight = null;
+        setAuthSessionState(null);
+        setUser(null);
+        setReady(true);
+        return;
+      }
+
+      setAuthSessionState(nextUser.id);
+      setUser(nextUser);
+      setReady(true);
+    })();
+
+    setAuthHydrationInFlight(hydration);
+
+    try {
+      await hydration;
+    } finally {
+      setAuthHydrationInFlight(null);
+    }
+
+    if (getAuthUserId()) {
+      await bootstrapSessionOnce().catch(() => {});
+    }
   }, []);
 
   useEffect(() => {
     const supabase = createBrowserSupabase();
     let cancelled = false;
 
-    void (async () => {
+    const authHydration = (async () => {
       const {
         data: { user: initial },
       } = await supabase.auth.getUser();
       if (cancelled) return;
       if (!initial) {
+        bootstrapInFlight = null;
+        setAuthHydrationInFlight(null);
         setAuthSessionState(null);
         setUser(null);
         setReady(true);
@@ -105,8 +156,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setAuthSessionState(initial.id);
       setUser(initial);
       setReady(true);
-      await bootstrapSession(initial.id).catch(() => {});
+    })();
+
+    setAuthHydrationInFlight(authHydration);
+
+    void authHydration.finally(() => {
+      if (!cancelled) {
+        setAuthHydrationInFlight(null);
+      }
+    });
+
+    void (async () => {
+      await authHydration.catch(() => {});
       if (cancelled) return;
+      if (getAuthUserId()) {
+        await bootstrapSessionOnce().catch(() => {});
+      }
     })();
 
     const {
@@ -115,6 +180,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (event === "SIGNED_OUT") {
         resetPreferencesCache();
         resetClientStoresForAuthChange();
+        bootstrapInFlight = null;
+        setAuthHydrationInFlight(null);
         setAuthSessionState(null);
         setUser(null);
         useSidebar.getState().loadItems();
@@ -125,7 +192,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setAuthSessionState(session.user.id);
         setUser(session.user);
         setReady(true);
-        await bootstrapSession(session.user.id).catch(() => {});
+        await bootstrapSessionOnce().catch(() => {});
       }
     });
 
@@ -140,8 +207,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       user,
       ready,
       signOut,
+      refreshSession,
     }),
-    [user, ready, signOut],
+    [user, ready, signOut, refreshSession],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -25,8 +25,7 @@ import CalendarToolbar from "./CalendarToolbar";
 import EventCard, { eventStyleGetter } from "./EventCard";
 import EventModal from "./EventModal";
 import { useCalendar, type CalendarEntry } from "@/stores/calendarStore";
-import { useKanban } from "@/stores/kanbanStore";
-import { EVENT_COLORS } from "@/lib/calendar";
+import { EVENT_COLORS } from "@/lib/models/calendar";
 
 const locales = { "en-US": enUS };
 
@@ -39,8 +38,7 @@ const localizer = dateFnsLocalizer({
 });
 
 export default function CalendarView() {
-  const { loadEvents, setKanbanTasks, getEntries, events, kanbanTasks } =
-    useCalendar();
+  const { loadEvents, getEntries, events } = useCalendar();
 
   const [view, setView] = useState<View>("month");
   const [date, setDate] = useState(new Date());
@@ -59,22 +57,10 @@ export default function CalendarView() {
     void loadEvents();
   }, [loadEvents]);
 
-  useEffect(() => {
-    void useKanban.getState().loadBoard();
-  }, []);
-
-  useEffect(() => {
-    const syncKanban = () => {
-      setKanbanTasks(useKanban.getState().tasks);
-    };
-    syncKanban();
-    return useKanban.subscribe(syncKanban);
-  }, [setKanbanTasks]);
-
   const entries = useMemo(
     () => getEntries(),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [events, kanbanTasks],
+    [events],
   );
 
   const handleNavigate = useCallback(

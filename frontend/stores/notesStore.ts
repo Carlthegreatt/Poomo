@@ -1,20 +1,24 @@
 import { create } from "zustand";
 import { toast } from "sonner";
+import { toUserMessage } from "@/lib/toUserMessage";
+import { getAuthUserId, waitForAuthHydration } from "@/lib/data/authSession";
 import {
   fetchNotes,
   createNote as apiCreateNote,
   updateNote as apiUpdateNote,
   deleteNote as apiDeleteNote,
   saveNoteOrder,
-  type Note,
-} from "@/lib/notes";
+} from "@/lib/data/notesRepo";
+import type { Note } from "@/lib/models/notes";
 
 /** Coalesces concurrent `loadNotes` (e.g. bootstrap + chat `buildContext`). */
 let notesLoadInFlight: Promise<void> | null = null;
-
+/** Prevents stale data when switching accounts. */
+let hydratedForUserId: string | null = null;
 /** Clears notes and sync flags so the next session refetches from the API. */
 export function resetNotesSessionData(): void {
   notesLoadInFlight = null;
+  hydratedForUserId = null;
   useNotes.setState({
     notes: [],
     activeNoteId: null,
@@ -49,15 +53,20 @@ export const useNotes = create<NotesState>((set, get) => ({
   notesSyncedOnce: false,
 
   loadNotes: async () => {
-    if (notesLoadInFlight) return notesLoadInFlight;
+    await waitForAuthHydration();
+    // Skip if already hydrated for the current user
+    const uid = getAuthUserId();
+    if (uid && uid === hydratedForUserId && get().notesSyncedOnce) return;
 
+    if (notesLoadInFlight) return notesLoadInFlight;
     const run = (async () => {
       set({ isLoading: true });
       try {
         const notes = await fetchNotes();
+        hydratedForUserId = uid;
         set({ notes, isLoading: false, notesSyncedOnce: true });
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Failed to load notes";
+        const msg = toUserMessage(err, "Failed to load notes");
         set({ isLoading: false, notesSyncedOnce: true });
         toast.error(msg);
       }

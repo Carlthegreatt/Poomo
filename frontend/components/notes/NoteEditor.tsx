@@ -20,8 +20,8 @@ import {
   Type,
   RemoveFormatting,
 } from "lucide-react";
-import { NOTE_COLORS } from "@/lib/notes";
-import type { Note } from "@/lib/notes";
+import { NOTE_COLORS } from "@/lib/models/notes";
+import type { Note } from "@/lib/models/notes";
 import { cn } from "@/lib/utils";
 import {
   Popover,

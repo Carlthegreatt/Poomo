@@ -5,12 +5,11 @@ import {
   useCallback,
   useRef,
   useEffect,
-  useLayoutEffect,
 } from "react";
 import {
   loadChatHistory,
   saveChatHistory,
-  clearChatHistory as clearStorage,
+  clearChatHistory,
   toGeminiMessages,
   type ChatMessage,
 } from "@/lib/ai/chatStorage";
@@ -27,57 +26,17 @@ const WIDGET_TYPES = new Set<ChatMessage["widget"]>([
   "notes",
 ]);
 
-/** `navigation.type` stays `"reload"` until the next document load; only blank once per refresh. */
-let chatClearedForThisReloadDocument = false;
-
-/** True for F5 / address-bar reload; false for first visit and in-app route changes. */
-function isDocumentReload(): boolean {
-  if (typeof performance === "undefined") return false;
-  const nav = performance.getEntriesByType("navigation")[0] as
-    | PerformanceNavigationTiming
-    | undefined;
-  return nav?.type === "reload";
-}
-
 export function useChat() {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(loadChatHistory);
   const [isStreaming, setIsStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
-  const initializedRef = useRef(false);
   /** Latest transcript for API calls; state updaters may not run before the next line of an async handler. */
-  const messagesRef = useRef<ChatMessage[]>([]);
+  const messagesRef = useRef<ChatMessage[]>(messages);
 
   useEffect(() => {
     messagesRef.current = messages;
+    saveChatHistory(messages);
   }, [messages]);
-
-  // useLayoutEffect so history is applied before the first paint. useEffect left
-  // the first frame at messages=[] → scroll pinned to an empty/welcome layout,
-  // then content appeared at scrollTop 0 (top of the real transcript).
-  useLayoutEffect(() => {
-    if (!initializedRef.current) {
-      initializedRef.current = true;
-      if (isDocumentReload()) {
-        if (!chatClearedForThisReloadDocument) {
-          chatClearedForThisReloadDocument = true;
-          clearStorage();
-          setMessages([]);
-          messagesRef.current = [];
-        } else {
-          const loaded = loadChatHistory();
-          setMessages(loaded);
-          messagesRef.current = loaded;
-        }
-      } else {
-        const loaded = loadChatHistory();
-        setMessages(loaded);
-        messagesRef.current = loaded;
-      }
-      // Avoid preloading stores here: this layout effect runs before SessionProvider's
-      // `getUser` effect, so `getAuthUserId()` can still be null and we'd hit local repos
-      // while signed in. `bootstrapSession` + feature views + `buildContext` load data.
-    }
-  }, []);
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -106,7 +65,6 @@ export function useChat() {
         };
         const next = [...messagesRef.current, userMsg, filled];
         setMessages(next);
-        saveChatHistory(next);
         messagesRef.current = next;
         await intent.execute();
         return;
@@ -118,7 +76,6 @@ export function useChat() {
         assistantMsg,
       ];
       setMessages(threadForApi);
-      saveChatHistory(threadForApi);
       messagesRef.current = threadForApi;
 
       setIsStreaming(true);
@@ -232,11 +189,6 @@ export function useChat() {
         if (pendingActions.length > 0) {
           await executeActions(pendingActions);
         }
-
-        setMessages((prev) => {
-          saveChatHistory(prev);
-          return prev;
-        });
       } catch (error) {
         if ((error as Error).name === "AbortError") return;
 
@@ -250,7 +202,6 @@ export function useChat() {
                 "I'm temporarily unavailable. Please try again shortly.",
             };
           }
-          saveChatHistory(updated);
           return updated;
         });
       } finally {
@@ -262,7 +213,6 @@ export function useChat() {
   );
 
   const clearHistory = useCallback(() => {
-    clearStorage();
     messagesRef.current = [];
     setMessages([]);
   }, []);

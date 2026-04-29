@@ -7,11 +7,11 @@ import { useNotes } from "@/stores/notesStore";
 
 export function NotesWidget() {
   const router = useRouter();
-  const { notes, isLoading, loadNotes } = useNotes();
+  const { notes, isLoading, notesSyncedOnce, loadNotes } = useNotes();
 
   useEffect(() => {
-    if (notes.length === 0 && !isLoading) void loadNotes();
-  }, [notes.length, isLoading, loadNotes]);
+    if (!notesSyncedOnce && !isLoading) void loadNotes();
+  }, [notesSyncedOnce, isLoading, loadNotes]);
 
   const summary =
     notes.length === 0
@@ -24,7 +24,7 @@ export function NotesWidget() {
     <button
       type="button"
       onClick={() => router.push("/notes")}
-      className="mt-2 flex w-full cursor-pointer items-center gap-3 rounded-xl border-2 border-border bg-background p-3 text-left shadow-[2px_2px_0_black] transition-transform hover:translate-y-[-1px] hover:shadow-[2px_3px_0_black]"
+      className="mt-2 flex w-full cursor-pointer items-center gap-3 rounded-xl border-2 border-border bg-background p-3 text-left shadow-[2px_2px_0_black] transition-transform hover:-translate-y-px hover:shadow-[2px_3px_0_black]"
     >
       <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-primary/10">
         <StickyNote className="size-4 text-primary" />

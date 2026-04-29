@@ -1,6 +1,3 @@
-import { readJSON, writeJSON } from "@/lib/storage";
-import { STORAGE_KEYS } from "@/lib/constants";
-
 export type WidgetType = "timer" | "board" | "calendar" | "stats" | "notes";
 
 export interface ChatMessage {
@@ -10,19 +7,32 @@ export interface ChatMessage {
   widget?: WidgetType;
 }
 
-const MAX_MESSAGES = 50;
+const CHAT_STORAGE_KEY = "poomo_chat_history";
 
+/** In-memory only; transcript does not persist across reloads. */
 export function loadChatHistory(): ChatMessage[] {
-  return readJSON<ChatMessage[]>(STORAGE_KEYS.CHAT_HISTORY, []);
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = sessionStorage.getItem(CHAT_STORAGE_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw) as ChatMessage[];
+  } catch {
+    return [];
+  }
 }
 
 export function saveChatHistory(messages: ChatMessage[]): void {
-  const trimmed = messages.slice(-MAX_MESSAGES);
-  writeJSON(STORAGE_KEYS.CHAT_HISTORY, trimmed);
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+  } catch {
+    // ignore
+  }
 }
 
 export function clearChatHistory(): void {
-  writeJSON(STORAGE_KEYS.CHAT_HISTORY, []);
+  if (typeof window === "undefined") return;
+  sessionStorage.removeItem(CHAT_STORAGE_KEY);
 }
 
 const ERROR_MESSAGES = new Set([

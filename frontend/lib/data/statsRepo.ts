@@ -1,36 +1,34 @@
 import { isCloudDataBackend } from "@/lib/data/authSession";
-import type { FocusSession } from "@/lib/statsTypes";
-import * as local from "@/lib/data/local/statsLocal";
+import type { FocusSession } from "@/lib/models/stats";
 import * as cloud from "@/lib/data/cloud/statsCloud";
 import { browserSupabase } from "@/lib/supabase/client";
+import { logSessionAction, clearSessionsAction } from "@/lib/actions/stats";
 
 export async function fetchSessions(): Promise<FocusSession[]> {
   return isCloudDataBackend()
     ? cloud.fetchSessionsCloud(browserSupabase())
-    : local.fetchSessionsLocal();
+    : [];
 }
 
 export async function clearSessions(): Promise<void> {
-  return isCloudDataBackend()
-    ? cloud.clearSessionsCloud(browserSupabase())
-    : local.clearSessionsLocal();
+  if (!isCloudDataBackend()) return;
+  const result = await clearSessionsAction();
+  if (!result.ok) throw new Error(result.message);
 }
 
 export async function logSession(
   session: Omit<FocusSession, "id">,
 ): Promise<FocusSession> {
-  return isCloudDataBackend()
-    ? cloud.logSessionCloud(browserSupabase(), session)
-    : Promise.resolve(local.logSessionLocal(session));
+  const result = await logSessionAction(session);
+  if (!result.ok) {
+    // Fallback for non-authenticated: return local-only session
+    return { id: crypto.randomUUID(), ...session };
+  }
+  return result.data;
 }
 
 export function getDailyGoal(): number {
   return isCloudDataBackend()
     ? cloud.getDailyGoalCloud()
-    : local.getDailyGoalLocal();
-}
-
-export async function setDailyGoal(goal: number): Promise<void> {
-  if (isCloudDataBackend()) await cloud.setDailyGoalCloud(browserSupabase(), goal);
-  else local.setDailyGoalLocal(goal);
+    : 8;
 }

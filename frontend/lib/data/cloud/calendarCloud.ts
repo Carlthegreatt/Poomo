@@ -1,7 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { generateId } from "@/lib/storage";
-import type { CalendarEvent } from "@/lib/calendarModel";
+import type { CalendarEvent } from "@/lib/models/calendar";
 import { requireDataUserId } from "@/lib/data/cloud/supabaseDataUser";
+import {
+  CALENDAR_FUTURE_MONTHS,
+  CALENDAR_PAST_MONTHS,
+} from "@/lib/data/fetchLimits";
 
 function mapEvent(row: {
   id: string;
@@ -25,16 +29,40 @@ function mapEvent(row: {
   };
 }
 
+function calendarFetchWindow(): { windowStart: Date; windowEnd: Date } {
+  const now = new Date();
+
+  // Window start: first day of the month `CALENDAR_PAST_MONTHS` ago
+  const windowStart = new Date(
+    now.getFullYear(),
+    now.getMonth() - CALENDAR_PAST_MONTHS,
+    1,
+    0, 0, 0, 0,
+  );
+
+  // Window end: last day of the month `CALENDAR_FUTURE_MONTHS` ahead
+  // day=0 gives the last day of the previous month, so (month + future + 1, 0)
+  const windowEnd = new Date(
+    now.getFullYear(),
+    now.getMonth() + CALENDAR_FUTURE_MONTHS + 1,
+    0,
+    23, 59, 59, 999,
+  );
+  return { windowStart, windowEnd };
+}
+
 export async function fetchEventsCloud(
   supabase: SupabaseClient,
 ): Promise<CalendarEvent[]> {
-  const userId = await requireDataUserId(supabase);
+  // RLS policies filter by auth.uid() automatically.
+  const { windowStart, windowEnd } = calendarFetchWindow();
   const { data, error } = await supabase
     .from("calendar_events")
     .select(
       "id,title,description,start_at,end_at,all_day,color,created_at",
     )
-    .eq("user_id", userId)
+    .gte("end_at", windowStart.toISOString())
+    .lte("start_at", windowEnd.toISOString())
     .order("start_at");
   if (error) throw error;
   return (data ?? []).map((r) =>

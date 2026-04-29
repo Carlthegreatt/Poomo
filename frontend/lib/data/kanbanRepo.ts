@@ -1,49 +1,77 @@
 import { isCloudDataBackend } from "@/lib/data/authSession";
-import type { KanbanBoardSnapshot, KanbanColumn, KanbanTask } from "@/lib/kanbanModel";
-import * as local from "@/lib/data/local/kanbanLocal";
+import {
+  DEFAULT_TASK_TYPE_LABELS,
+  type KanbanBoardSnapshot,
+  type KanbanColumn,
+  type KanbanTask,
+} from "@/lib/models/kanban";
 import * as cloud from "@/lib/data/cloud/kanbanCloud";
 import { browserSupabase } from "@/lib/supabase/client";
+import {
+  createColumnAction,
+  updateColumnAction,
+  deleteColumnAction,
+  createTaskAction,
+  updateTaskAction,
+  deleteTaskAction,
+  batchUpdateColumnPositionsAction,
+  batchUpdateTaskPositionsAction,
+  registerTaskTypeLabelAction,
+} from "@/lib/actions/kanban";
+
+const EMPTY_BOARD_SNAPSHOT: KanbanBoardSnapshot = {
+  columns: [],
+  tasks: [],
+  task_types: [...DEFAULT_TASK_TYPE_LABELS],
+};
+
+function notSignedIn(): Error {
+  return new Error("Not signed in");
+}
 
 export async function registerTaskTypeLabel(label: string): Promise<string[]> {
-  return isCloudDataBackend()
-    ? cloud.registerTaskTypeLabelCloud(browserSupabase(), label)
-    : local.registerTaskTypeLabelLocal(label);
+  if (!isCloudDataBackend()) throw notSignedIn();
+  const result = await registerTaskTypeLabelAction(label);
+  if (!result.ok) throw new Error(result.message);
+  return result.data;
 }
 
 export async function getTaskTypeLabels(): Promise<string[]> {
   return isCloudDataBackend()
     ? cloud.getTaskTypeLabelsCloud(browserSupabase())
-    : local.getTaskTypeLabelsLocal();
+    : [...EMPTY_BOARD_SNAPSHOT.task_types];
 }
 
 export async function fetchBoard(): Promise<KanbanBoardSnapshot> {
   return isCloudDataBackend()
     ? cloud.fetchBoardCloud(browserSupabase())
-    : local.fetchBoardLocal();
+    : EMPTY_BOARD_SNAPSHOT;
 }
 
 export async function createColumn(
   title: string,
   position: number,
 ): Promise<KanbanColumn> {
-  return isCloudDataBackend()
-    ? cloud.createColumnCloud(browserSupabase(), title, position)
-    : local.createColumnLocal(title, position);
+  if (!isCloudDataBackend()) throw notSignedIn();
+  const result = await createColumnAction({ title, position });
+  if (!result.ok) throw new Error(result.message);
+  return result.data;
 }
 
 export async function updateColumn(
   id: string,
   updates: Partial<Pick<KanbanColumn, "title" | "position">>,
 ): Promise<KanbanColumn> {
-  return isCloudDataBackend()
-    ? cloud.updateColumnCloud(browserSupabase(), id, updates)
-    : local.updateColumnLocal(id, updates);
+  if (!isCloudDataBackend()) throw notSignedIn();
+  const result = await updateColumnAction({ id, updates });
+  if (!result.ok) throw new Error(result.message);
+  return result.data;
 }
 
 export async function deleteColumn(id: string): Promise<void> {
-  return isCloudDataBackend()
-    ? cloud.deleteColumnCloud(browserSupabase(), id)
-    : local.deleteColumnLocal(id);
+  if (!isCloudDataBackend()) throw notSignedIn();
+  const result = await deleteColumnAction({ id });
+  if (!result.ok) throw new Error(result.message);
 }
 
 export async function createTask(
@@ -60,9 +88,10 @@ export async function createTask(
       >
     >,
 ): Promise<KanbanTask> {
-  return isCloudDataBackend()
-    ? cloud.createTaskCloud(browserSupabase(), task)
-    : local.createTaskLocal(task);
+  if (!isCloudDataBackend()) throw notSignedIn();
+  const result = await createTaskAction(task);
+  if (!result.ok) throw new Error(result.message);
+  return result.data;
 }
 
 export async function updateTask(
@@ -82,29 +111,30 @@ export async function updateTask(
     >
   >,
 ): Promise<KanbanTask> {
-  return isCloudDataBackend()
-    ? cloud.updateTaskCloud(browserSupabase(), id, updates)
-    : local.updateTaskLocal(id, updates);
+  if (!isCloudDataBackend()) throw notSignedIn();
+  const result = await updateTaskAction({ id, updates });
+  if (!result.ok) throw new Error(result.message);
+  return result.data;
 }
 
 export async function deleteTask(id: string): Promise<void> {
-  return isCloudDataBackend()
-    ? cloud.deleteTaskCloud(browserSupabase(), id)
-    : local.deleteTaskLocal(id);
+  if (!isCloudDataBackend()) throw notSignedIn();
+  const result = await deleteTaskAction({ id });
+  if (!result.ok) throw new Error(result.message);
 }
 
 export async function batchUpdateColumnPositions(
   items: { id: string; position: number }[],
 ): Promise<void> {
-  return isCloudDataBackend()
-    ? cloud.batchUpdateColumnPositionsCloud(browserSupabase(), items)
-    : local.batchUpdateColumnPositionsLocal(items);
+  if (!isCloudDataBackend()) throw notSignedIn();
+  const result = await batchUpdateColumnPositionsAction(items);
+  if (!result.ok) throw new Error(result.message);
 }
 
 export async function batchUpdateTaskPositions(
   items: { id: string; position: number; column_id?: string }[],
 ): Promise<void> {
-  return isCloudDataBackend()
-    ? cloud.batchUpdateTaskPositionsCloud(browserSupabase(), items)
-    : local.batchUpdateTaskPositionsLocal(items);
+  if (!isCloudDataBackend()) throw notSignedIn();
+  const result = await batchUpdateTaskPositionsAction(items);
+  if (!result.ok) throw new Error(result.message);
 }

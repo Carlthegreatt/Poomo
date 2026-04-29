@@ -3,6 +3,7 @@ import { useKanban } from "@/stores/kanbanStore";
 import { useCalendar } from "@/stores/calendarStore";
 import { useStats } from "@/stores/statsStore";
 import { useNotes } from "@/stores/notesStore";
+import { waitForAuthHydration } from "@/lib/data/authSession";
 
 export interface AppContext {
   /** Kanban column titles in board order (includes empty columns). */
@@ -45,16 +46,18 @@ const MAX_CONTEXT_EVENTS = 10;
 const MAX_CONTEXT_TASKS = 15;
 
 export async function buildContext(): Promise<AppContext> {
+  await waitForAuthHydration();
+
   const calendarP = (async () => {
     const cal = useCalendar.getState();
-    if (cal.events.length === 0 && !cal.isLoading) {
+    if (cal.events.length === 0) {
       await cal.loadEvents();
     }
   })();
 
   const kanbanP = (async () => {
     const k = useKanban.getState();
-    if (k.columns.length === 0 && !k.isLoading) {
+    if (k.columns.length === 0) {
       await k.loadBoard();
     }
   })();

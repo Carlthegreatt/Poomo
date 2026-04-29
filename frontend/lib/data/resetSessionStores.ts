@@ -1,5 +1,5 @@
-import { useCalendar } from "@/stores/calendarStore";
-import { useFlashcards } from "@/stores/flashcardsStore";
+import { resetCalendarSessionData } from "@/stores/calendarStore";
+import { resetFlashcardsSessionData } from "@/stores/flashcardsStore";
 import { resetKanbanSessionData } from "@/stores/kanbanStore";
 import { resetNotesSessionData } from "@/stores/notesStore";
 import { useStats } from "@/stores/statsStore";
@@ -12,7 +12,7 @@ import { useStats } from "@/stores/statsStore";
 export function resetClientStoresForAuthChange(): void {
   resetKanbanSessionData();
   resetNotesSessionData();
-  useCalendar.setState({ events: [], kanbanTasks: [], isLoading: false });
-  useStats.setState({ sessions: [], isLoading: false });
-  useFlashcards.setState({ decks: [], activeDeckId: null, isLoading: false });
+  resetCalendarSessionData();
+  useStats.setState({ sessions: [], isLoading: false, error: null });
+  resetFlashcardsSessionData();
 }

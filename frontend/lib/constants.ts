@@ -8,14 +8,3 @@ export const ACCENT_COLORS = [
 ] as const;
 
 export type AccentColor = (typeof ACCENT_COLORS)[number];
-
-export const STORAGE_KEYS = {
-  KANBAN: "poomo-kanban",
-  CALENDAR: "poomo-calendar",
-  SESSIONS: "poomo-sessions",
-  DAILY_GOAL: "poomo-daily-goal",
-  CHAT_HISTORY: "poomo-chat-history",
-  NOTES: "poomo-notes",
-  FLASHCARDS: "poomo-flashcards",
-  SIDEBAR_ORDER: "poomo-sidebar-order",
-} as const;

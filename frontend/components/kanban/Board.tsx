@@ -24,25 +24,9 @@ import TaskCard from "./TaskCard";
 import { Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import type { KanbanTask } from "@/lib/kanban";
+import type { KanbanTask } from "@/lib/models/kanban";
 
-const WIDTHS_KEY = "poomo-kanban-widths";
 const DEFAULT_WIDTH = 320;
-
-function loadWidths(): Record<string, number> {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = localStorage.getItem(WIDTHS_KEY);
-    return raw ? (JSON.parse(raw) as Record<string, number>) : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveWidths(widths: Record<string, number>) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(WIDTHS_KEY, JSON.stringify(widths));
-}
 
 export default function Board() {
   const {
@@ -62,39 +46,32 @@ export default function Board() {
 
   const [activeTask, setActiveTask] = useState<KanbanTask | null>(null);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(loadWidths);
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
 
   const handleColumnResize = useCallback((columnId: string, width: number) => {
-    setColumnWidths((prev) => {
-      const next = { ...prev, [columnId]: width };
-      saveWidths(next);
-      return next;
-    });
+    setColumnWidths((prev) => ({ ...prev, [columnId]: width }));
   }, []);
 
   useEffect(() => {
-    loadBoard();
+    void loadBoard({ force: true });
   }, [loadBoard]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor)
+    useSensor(KeyboardSensor),
   );
 
-  const handleDragStart = useCallback(
-    (event: DragStartEvent) => {
-      const { active } = event;
-      const data = active.data.current;
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const { active } = event;
+    const data = active.data.current;
 
-      if (data?.type === "task") {
-        const task = useKanban.getState().tasks.find((t) => t.id === active.id);
-        if (task) setActiveTask(task);
-      } else if (data?.type === "column") {
-        setActiveColumnId(active.id as string);
-      }
-    },
-    []
-  );
+    if (data?.type === "task") {
+      const task = useKanban.getState().tasks.find((t) => t.id === active.id);
+      if (task) setActiveTask(task);
+    } else if (data?.type === "column") {
+      setActiveColumnId(active.id as string);
+    }
+  }, []);
 
   const handleDragOver = useCallback(
     (event: DragOverEvent) => {
@@ -170,7 +147,7 @@ export default function Board() {
             reorderTaskInColumn(
               activeColId,
               active.id as string,
-              over.id as string
+              over.id as string,
             );
             persistTaskOrder(activeColId);
           } else if (activeColId !== overColId) {
@@ -188,7 +165,13 @@ export default function Board() {
         }
       }
     },
-    [reorderColumns, persistColumnOrder, reorderTaskInColumn, persistTaskOrder, persistTaskMove]
+    [
+      reorderColumns,
+      persistColumnOrder,
+      reorderTaskInColumn,
+      persistTaskOrder,
+      persistTaskMove,
+    ],
   );
 
   const [newColumnName, setNewColumnName] = useState("");
@@ -214,7 +197,11 @@ export default function Board() {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-4 p-6 text-center">
         <p className="text-sm text-muted-foreground max-w-md">{error}</p>
-        <Button type="button" variant="filled" onClick={() => loadBoard({ force: true })}>
+        <Button
+          type="button"
+          variant="filled"
+          onClick={() => loadBoard({ force: true })}
+        >
           Retry
         </Button>
       </div>
@@ -248,9 +235,9 @@ export default function Board() {
           ))}
         </SortableContext>
 
-        <div className="flex-shrink-0 self-stretch">
+        <div className="shrink-0 self-stretch">
           <button
-            className="w-[320px] h-full min-h-[200px] border-2 border-dashed border-border rounded-3xl flex flex-col items-center justify-center gap-2 text-muted-foreground hover:text-foreground hover:border-foreground hover:bg-white/50 transition-colors cursor-pointer"
+            className="w-[320px] h-full min-h-50 border-2 border-dashed border-border rounded-3xl flex flex-col items-center justify-center gap-2 text-muted-foreground hover:text-foreground hover:border-foreground hover:bg-white/50 transition-colors cursor-pointer"
             onClick={() => setAddColumnOpen(true)}
           >
             <Plus className="size-5" />
@@ -258,67 +245,75 @@ export default function Board() {
           </button>
         </div>
 
-      {addColumnOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-          onClick={() => { setAddColumnOpen(false); setNewColumnName(""); }}
-        >
+        {addColumnOpen && (
           <div
-            className="w-full max-w-sm border-2 border-border bg-white rounded-3xl p-6 shadow-[6px_6px_0_black] space-y-4"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+            onClick={() => {
+              setAddColumnOpen(false);
+              setNewColumnName("");
+            }}
           >
-            <p className="text-lg font-semibold">New Column</p>
-            <Input
-              placeholder="Column name"
-              value={newColumnName}
-              onChange={(e) => setNewColumnName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleAddColumn();
-                if (e.key === "Escape") { setAddColumnOpen(false); setNewColumnName(""); }
-              }}
-              autoFocus
-            />
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => { setAddColumnOpen(false); setNewColumnName(""); }}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="filled"
-                className="flex-1"
-                onClick={handleAddColumn}
-                disabled={!newColumnName.trim()}
-              >
-                Create
-              </Button>
+            <div
+              className="w-full max-w-sm border-2 border-border bg-white rounded-3xl p-6 shadow-[6px_6px_0_black] space-y-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p className="text-lg font-semibold">New Column</p>
+              <Input
+                placeholder="Column name"
+                value={newColumnName}
+                onChange={(e) => setNewColumnName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleAddColumn();
+                  if (e.key === "Escape") {
+                    setAddColumnOpen(false);
+                    setNewColumnName("");
+                  }
+                }}
+                autoFocus
+              />
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    setAddColumnOpen(false);
+                    setNewColumnName("");
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="filled"
+                  className="flex-1"
+                  onClick={handleAddColumn}
+                  disabled={!newColumnName.trim()}
+                >
+                  Create
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
       </div>
 
       <DragOverlay>
-        {activeTask && (
-          <TaskCard task={activeTask} isOverlay />
-        )}
-        {activeColumnId && (() => {
-          const col = columns.find((c) => c.id === activeColumnId);
-          if (!col) return null;
-          const w = columnWidths[col.id] ?? DEFAULT_WIDTH;
-          return (
-            <div
-              style={{ width: w }}
-              className="min-h-[200px] border-2 border-border bg-white rounded-3xl shadow-[4px_4px_0_black] opacity-95 flex-shrink-0 flex flex-col"
-            >
-              <div className="p-3">
-                <p className="text-sm font-semibold truncate">{col.title}</p>
+        {activeTask && <TaskCard task={activeTask} isOverlay />}
+        {activeColumnId &&
+          (() => {
+            const col = columns.find((c) => c.id === activeColumnId);
+            if (!col) return null;
+            const w = columnWidths[col.id] ?? DEFAULT_WIDTH;
+            return (
+              <div
+                style={{ width: w }}
+                className="min-h-50 border-2 border-border bg-white rounded-3xl shadow-[4px_4px_0_black] opacity-95 shrink-0 flex flex-col"
+              >
+                <div className="p-3">
+                  <p className="text-sm font-semibold truncate">{col.title}</p>
+                </div>
               </div>
-            </div>
-          );
-        })()}
+            );
+          })()}
       </DragOverlay>
     </DndContext>
   );

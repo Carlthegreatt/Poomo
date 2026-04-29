@@ -17,8 +17,18 @@ import { getClientIp, readRequestTextWithLimit } from "@/lib/server/chat/request
 import { getServerSessionUser } from "@/lib/supabase/serverSession";
 import { stripModelThinkingPreamble } from "@/lib/server/chat/sanitizeModelOutput";
 import { buildSystemPrompt } from "@/lib/server/chat/systemPrompt";
+import { headers } from "next/headers";
 
-const genai = createChatGenAI();
+/** Validates the request origin against the app's own origin. */
+async function isValidOrigin(req: Request): Promise<boolean> {
+  const origin = req.headers.get("origin");
+  if (!origin) return true; // Non-browser requests (curl, etc.) don't send Origin
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
+  const proto = h.get("x-forwarded-proto") ?? "http";
+  const expected = `${proto}://${host}`;
+  return origin === expected;
+}
 
 type ContentPart = {
   text?: string;
@@ -30,6 +40,14 @@ export async function postChat(req: Request): Promise<Response> {
     chatDebug("reject: GEMINI_API_KEY missing");
     return Response.json({ error: GENERIC_ERROR }, { status: 503 });
   }
+
+  // Validate origin to prevent cross-site abuse
+  if (!(await isValidOrigin(req))) {
+    chatDebug("reject: invalid origin", { origin: req.headers.get("origin") });
+    return Response.json({ error: GENERIC_ERROR }, { status: 403 });
+  }
+
+  const genai = createChatGenAI();
 
   const { user } = await getServerSessionUser();
   if (!user) {

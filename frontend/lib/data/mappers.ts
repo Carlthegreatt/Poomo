@@ -1,4 +1,4 @@
-import type { FocusSession } from "@/lib/statsTypes";
+import type { FocusSession } from "@/lib/models/stats";
 
 export type { FocusSession };
 

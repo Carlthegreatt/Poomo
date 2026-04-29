@@ -4,7 +4,7 @@ import { useKanban } from "@/stores/kanbanStore";
 import { useCalendar } from "@/stores/calendarStore";
 import { parseChatAction } from "@/lib/ai/chatActionSchema";
 import type { ChatAction } from "@/lib/ai/tools";
-import { createNote as apiCreateNote } from "@/lib/notes";
+import { createNote as apiCreateNote } from "@/lib/data/notesRepo";
 import { useNotes } from "@/stores/notesStore";
 
 function escapeHtml(s: string): string {

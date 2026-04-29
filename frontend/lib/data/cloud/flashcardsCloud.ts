@@ -1,7 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { generateId } from "@/lib/storage";
-import type { Flashcard, FlashcardDeck } from "@/lib/flashcardsModel";
+import type { Flashcard, FlashcardDeck } from "@/lib/models/flashcards";
 import { requireDataUserId } from "@/lib/data/cloud/supabaseDataUser";
+import { FLASHCARD_DECKS_FETCH_LIMIT } from "@/lib/data/fetchLimits";
+
+const FLASHCARD_DECK_IDS_IN_CHUNK = 80;
 
 function mapCard(row: {
   id: string;
@@ -20,27 +23,31 @@ function mapCard(row: {
 export async function fetchDecksCloud(
   supabase: SupabaseClient,
 ): Promise<FlashcardDeck[]> {
-  const userId = await requireDataUserId(supabase);
+  // RLS policies filter by auth.uid() automatically.
   const { data: deckRows, error: dErr } = await supabase
     .from("flashcard_decks")
     .select("id,title,color,position,created_at,updated_at")
-    .eq("user_id", userId)
-    .order("position");
+    .order("position")
+    .limit(FLASHCARD_DECKS_FETCH_LIMIT);
   if (dErr) throw dErr;
   const decks = deckRows ?? [];
   if (decks.length === 0) return [];
 
   const deckIds = decks.map((d) => d.id as string);
-  const { data: cardRows, error: cErr } = await supabase
-    .from("flashcards")
-    .select("id,deck_id,front,back,position,created_at")
-    .eq("user_id", userId)
-    .in("deck_id", deckIds)
-    .order("position");
-  if (cErr) throw cErr;
+  const cardRows: Record<string, unknown>[] = [];
+  for (let i = 0; i < deckIds.length; i += FLASHCARD_DECK_IDS_IN_CHUNK) {
+    const chunk = deckIds.slice(i, i + FLASHCARD_DECK_IDS_IN_CHUNK);
+    const { data: rows, error: cErr } = await supabase
+      .from("flashcards")
+      .select("id,deck_id,front,back,position,created_at")
+      .in("deck_id", chunk)
+      .order("position");
+    if (cErr) throw cErr;
+    cardRows.push(...(rows ?? []));
+  }
 
   const cardsByDeck = new Map<string, Flashcard[]>();
-  for (const r of cardRows ?? []) {
+  for (const r of cardRows) {
     const row = r as {
       deck_id: string;
       id: string;
@@ -261,25 +268,51 @@ export async function saveDeckOrderCloud(
   supabase: SupabaseClient,
   decks: FlashcardDeck[],
 ): Promise<void> {
-  const userId = await requireDataUserId(supabase);
-  const now = new Date().toISOString();
-  for (let i = 0; i < decks.length; i++) {
-    const d = decks[i];
-    const { error } = await supabase
-      .from("flashcard_decks")
-      .update({ position: i, updated_at: now })
-      .eq("id", d.id)
-      .eq("user_id", userId);
-    if (error) throw error;
-    for (let j = 0; j < d.cards.length; j++) {
-      const c = d.cards[j];
-      const { error: e2 } = await supabase
-        .from("flashcards")
-        .update({ position: j })
-        .eq("id", c.id)
-        .eq("deck_id", d.id)
-        .eq("user_id", userId);
-      if (e2) throw e2;
+  // Build batch payloads for the RPCs
+  const deckUpdates = decks.map((d, i) => ({ id: d.id, position: i }));
+  const cardUpdates = decks.flatMap((d) =>
+    d.cards.map((c, j) => ({ id: c.id, position: j })),
+  );
+
+  // Batch deck position update
+  if (deckUpdates.length > 0) {
+    const { error } = await supabase.rpc(
+      "batch_update_flashcard_deck_positions",
+      { p_updates: deckUpdates },
+    );
+    // Fallback to sequential if RPC doesn't exist
+    if (error?.code === "42883") {
+      const userId = await requireDataUserId(supabase);
+      const now = new Date().toISOString();
+      for (const u of deckUpdates) {
+        await supabase
+          .from("flashcard_decks")
+          .update({ position: u.position, updated_at: now })
+          .eq("id", u.id)
+          .eq("user_id", userId);
+      }
+    } else if (error) {
+      throw error;
+    }
+  }
+
+  // Batch card position update
+  if (cardUpdates.length > 0) {
+    const { error } = await supabase.rpc(
+      "batch_update_flashcard_positions",
+      { p_updates: cardUpdates },
+    );
+    if (error?.code === "42883") {
+      const userId = await requireDataUserId(supabase);
+      for (const u of cardUpdates) {
+        await supabase
+          .from("flashcards")
+          .update({ position: u.position })
+          .eq("id", u.id)
+          .eq("user_id", userId);
+      }
+    } else if (error) {
+      throw error;
     }
   }
 }

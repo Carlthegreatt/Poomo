@@ -1,13 +1,26 @@
 import { create } from "zustand";
 import { toast } from "sonner";
+import { getAuthUserId, waitForAuthHydration } from "@/lib/data/authSession";
+import { toUserMessage } from "@/lib/toUserMessage";
 import {
   fetchEvents,
   createEvent as apiCreateEvent,
   updateEvent as apiUpdateEvent,
   deleteEvent as apiDeleteEvent,
-  type CalendarEvent,
-} from "@/lib/calendar";
-import { type KanbanTask } from "@/lib/kanban";
+} from "@/lib/data/calendarRepo";
+import type { CalendarEvent } from "@/lib/models/calendar";
+
+/** Coalesces concurrent `loadEvents` calls (bootstrap + page/chat context). */
+let eventsLoadInFlight: Promise<void> | null = null;
+/** User id for which events were last hydrated. */
+let eventsHydratedForUserId: string | null = null;
+
+/** Clears session-local event cache so next auth session refetches from API. */
+export function resetCalendarSessionData(): void {
+  eventsLoadInFlight = null;
+  eventsHydratedForUserId = null;
+  useCalendar.setState({ events: [], isLoading: false });
+}
 
 export interface CalendarEntry {
   id: string;
@@ -17,16 +30,13 @@ export interface CalendarEntry {
   end: Date;
   allDay: boolean;
   color: string | null;
-  source: "calendar" | "kanban";
 }
 
 interface CalendarState {
   events: CalendarEvent[];
-  kanbanTasks: KanbanTask[];
   isLoading: boolean;
 
-  loadEvents: () => Promise<void>;
-  setKanbanTasks: (tasks: KanbanTask[]) => void;
+  loadEvents: (options?: { force?: boolean }) => Promise<void>;
   getEntries: () => CalendarEntry[];
 
   addEvent: (event: Omit<CalendarEvent, "id" | "created_at">) => Promise<void>;
@@ -37,74 +47,65 @@ interface CalendarState {
   removeEvent: (id: string) => Promise<void>;
 }
 
+function eventsToEntries(events: CalendarEvent[]): CalendarEntry[] {
+  return events.map((e) => ({
+    id: e.id,
+    title: e.title,
+    description: e.description,
+    start: new Date(e.start),
+    end: new Date(e.end),
+    allDay: e.all_day,
+    color: e.color,
+  }));
+}
+
 export const useCalendar = create<CalendarState>((set, get) => ({
   events: [],
-  kanbanTasks: [],
   isLoading: false,
 
-  loadEvents: async () => {
-    set({ isLoading: true });
+  loadEvents: async (options?: { force?: boolean }) => {
+    const force = options?.force ?? false;
+    await waitForAuthHydration();
+    const uid = getAuthUserId();
+    if (
+      !force &&
+      get().events.length > 0 &&
+      uid != null &&
+      eventsHydratedForUserId === uid
+    ) {
+      if (get().isLoading) set({ isLoading: false });
+      return;
+    }
+
+    if (eventsLoadInFlight) return eventsLoadInFlight;
+
+    const run = (async () => {
+      const uidAtStart = getAuthUserId();
+      set({ isLoading: true });
+      try {
+        const events = await fetchEvents();
+        if (getAuthUserId() !== uidAtStart) {
+          set({ isLoading: false });
+          return;
+        }
+        eventsHydratedForUserId = getAuthUserId();
+        set({ events, isLoading: false });
+      } catch (err) {
+        const msg = toUserMessage(err, "Failed to load events");
+        set({ isLoading: false });
+        toast.error(msg);
+      }
+    })();
+
+    eventsLoadInFlight = run;
     try {
-      const events = await fetchEvents();
-      set({ events, isLoading: false });
-    } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : "Failed to load events";
-      set({ isLoading: false });
-      toast.error(msg);
+      await run;
+    } finally {
+      if (eventsLoadInFlight === run) eventsLoadInFlight = null;
     }
   },
 
-  setKanbanTasks: (tasks) => set({ kanbanTasks: tasks }),
-
-  getEntries: () => {
-    const { events, kanbanTasks } = get();
-
-    const calendarEntries: CalendarEntry[] = events.map((e) => ({
-      id: e.id,
-      title: e.title,
-      description: e.description,
-      start: new Date(e.start),
-      end: new Date(e.end),
-      allDay: e.all_day,
-      color: e.color,
-      source: "calendar" as const,
-    }));
-
-    const kanbanEntries: CalendarEntry[] = kanbanTasks
-      .filter((t) => t.due_date)
-      .map((t) => {
-        if (t.due_time) {
-          const [h, m] = t.due_time.split(":").map((x) => parseInt(x, 10));
-          const start = new Date(t.due_date! + "T00:00:00");
-          if (!Number.isNaN(h)) start.setHours(h, Number.isNaN(m) ? 0 : m, 0, 0);
-          const end = new Date(start.getTime() + 60 * 60 * 1000);
-          return {
-            id: `kanban-${t.id}`,
-            title: t.title,
-            description: t.description,
-            start,
-            end,
-            allDay: false,
-            color: t.color,
-            source: "kanban" as const,
-          };
-        }
-        const date = new Date(t.due_date! + "T00:00:00");
-        return {
-          id: `kanban-${t.id}`,
-          title: t.title,
-          description: t.description,
-          start: date,
-          end: date,
-          allDay: true,
-          color: t.color,
-          source: "kanban" as const,
-        };
-      });
-
-    return [...calendarEntries, ...kanbanEntries];
-  },
+  getEntries: () => eventsToEntries(get().events),
 
   addEvent: async (event) => {
     const tempId = `temp-${Date.now()}`;
