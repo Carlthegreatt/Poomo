@@ -34,17 +34,26 @@ export async function fetchDecksCloud(
   if (decks.length === 0) return [];
 
   const deckIds = decks.map((d) => d.id as string);
-  const cardRows: Record<string, unknown>[] = [];
+
+  // Fetch card chunks in parallel instead of serially.
+  const chunks: string[][] = [];
   for (let i = 0; i < deckIds.length; i += FLASHCARD_DECK_IDS_IN_CHUNK) {
-    const chunk = deckIds.slice(i, i + FLASHCARD_DECK_IDS_IN_CHUNK);
-    const { data: rows, error: cErr } = await supabase
-      .from("flashcards")
-      .select("id,deck_id,front,back,position,created_at")
-      .in("deck_id", chunk)
-      .order("position");
-    if (cErr) throw cErr;
-    cardRows.push(...(rows ?? []));
+    chunks.push(deckIds.slice(i, i + FLASHCARD_DECK_IDS_IN_CHUNK));
   }
+  const chunkResults = await Promise.all(
+    chunks.map((chunk) =>
+      supabase
+        .from("flashcards")
+        .select("id,deck_id,front,back,position,created_at")
+        .in("deck_id", chunk)
+        .order("position")
+        .then(({ data, error }) => {
+          if (error) throw error;
+          return data ?? [];
+        }),
+    ),
+  );
+  const cardRows = chunkResults.flat();
 
   const cardsByDeck = new Map<string, Flashcard[]>();
   for (const r of cardRows) {
@@ -123,11 +132,16 @@ export async function createDeckCloud(
   };
 }
 
+/**
+ * Updates deck metadata (title/color). Returns deck metadata only — the caller
+ * (store) is responsible for merging with its existing cards to avoid an
+ * unnecessary card re-fetch on every simple title or color update.
+ */
 export async function updateDeckCloud(
   supabase: SupabaseClient,
   id: string,
   updates: Partial<Pick<FlashcardDeck, "title" | "color">>,
-): Promise<FlashcardDeck> {
+): Promise<Omit<FlashcardDeck, "cards">> {
   const userId = await requireDataUserId(supabase);
   const patch = {
     ...updates,
@@ -148,21 +162,10 @@ export async function updateDeckCloud(
     created_at: string;
     updated_at: string;
   };
-  const { data: cardRows, error: cErr } = await supabase
-    .from("flashcards")
-    .select("id,front,back,created_at")
-    .eq("deck_id", id)
-    .eq("user_id", userId)
-    .order("position");
-  if (cErr) throw cErr;
-  const cards = (cardRows ?? []).map((c) =>
-    mapCard(c as Parameters<typeof mapCard>[0]),
-  );
   return {
     id: r.id,
     title: r.title,
     color: r.color,
-    cards,
     created_at: r.created_at,
     updated_at: r.updated_at,
   };
@@ -210,7 +213,8 @@ export async function addCardCloud(
     .select("id,front,back,created_at")
     .single();
   if (error) throw error;
-  await supabase
+  // Fire-and-forget: update deck's updated_at timestamp without blocking the response.
+  void supabase
     .from("flashcard_decks")
     .update({ updated_at: now })
     .eq("id", deckId)
@@ -235,7 +239,8 @@ export async function updateCardCloud(
     .select("id,front,back,created_at")
     .single();
   if (error) throw error;
-  await supabase
+  // Fire-and-forget: update deck's updated_at timestamp without blocking the response.
+  void supabase
     .from("flashcard_decks")
     .update({ updated_at: now })
     .eq("id", deckId)
@@ -257,7 +262,8 @@ export async function deleteCardCloud(
     .eq("deck_id", deckId)
     .eq("user_id", userId);
   if (error) throw error;
-  await supabase
+  // Fire-and-forget: update deck's updated_at timestamp without blocking the response.
+  void supabase
     .from("flashcard_decks")
     .update({ updated_at: now })
     .eq("id", deckId)

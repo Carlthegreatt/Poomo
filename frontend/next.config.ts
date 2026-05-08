@@ -30,6 +30,23 @@ const nextConfig: NextConfig = {
   },
 
   async headers() {
+    const supabaseHost = process.env.NEXT_PUBLIC_SUPABASE_URL
+      ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).host
+      : "";
+
+    const csp = [
+      "default-src 'self'",
+      `connect-src 'self' https://${supabaseHost} wss://${supabaseHost}`,
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com",
+      "img-src 'self' data: blob:",
+      "worker-src 'self' blob:",
+      "frame-ancestors 'none'",
+    ]
+      .filter(Boolean)
+      .join("; ");
+
     return [
       {
         source: "/(.*)",
@@ -44,6 +61,10 @@ const nextConfig: NextConfig = {
           {
             key: "Strict-Transport-Security",
             value: "max-age=63072000; includeSubDomains; preload",
+          },
+          {
+            key: "Content-Security-Policy",
+            value: csp,
           },
         ],
       },

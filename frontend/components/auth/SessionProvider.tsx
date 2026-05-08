@@ -40,7 +40,10 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+/** Tracks which userId's bootstrap is in-flight or completed to prevent double-bootstrap. */
 let bootstrapInFlight: Promise<void> | null = null;
+let bootstrapCalledForUserId: string | null = null;
 
 function applyPreferencesToStores() {
   const prefs = getPreferencesCache();
@@ -53,25 +56,48 @@ function applyPreferencesToStores() {
   }
 }
 
+/**
+ * Boots all domain stores for the current user.
+ * Profile preferences are fetched concurrently with store loads so neither
+ * blocks the other — data appears as soon as the fastest call resolves.
+ */
 async function bootstrapSession() {
   resetClientStoresForAuthChange();
-  // Do not set domain `isLoading` here: profile fetch can take time or stall on network.
-  // Each store sets loading when its own fetch starts; otherwise every tab shows a spinner
-  // for work that is not yet hitting the board/notes/etc. APIs.
   const supabase = createBrowserSupabase();
-  const first = await fetchProfilePreferences(supabase).catch(() => null);
-  if (first) applyPreferencesToStores();
-  await Promise.all([
+
+  // Kick off profile fetch and all store loads simultaneously.
+  const profileFetch = fetchProfilePreferences(supabase)
+    .then(applyPreferencesToStores)
+    .catch(() => {
+      /* best-effort: preferences are non-critical */
+    });
+
+  const storeLoads = Promise.all([
     useKanban.getState().loadBoard(),
     useStats.getState().loadSessions(),
     useCalendar.getState().loadEvents(),
     useNotes.getState().loadNotes(),
     useFlashcards.getState().loadDecks(),
   ]);
+
+  await Promise.all([profileFetch, storeLoads]);
 }
 
-function bootstrapSessionOnce(): Promise<void> {
-  if (bootstrapInFlight) return bootstrapInFlight;
+/**
+ * Ensures only one bootstrap runs per userId.
+ * If the same user triggers two SIGNED_IN events (e.g. token refresh),
+ * the second call is coalesced into the in-flight promise.
+ * If a different user logs in, resets state and starts fresh.
+ */
+function bootstrapSessionOnce(userId: string): Promise<void> {
+  // Already bootstrapping for this user — coalesce.
+  if (bootstrapCalledForUserId === userId && bootstrapInFlight) {
+    return bootstrapInFlight;
+  }
+
+  // Different user or stale state — start fresh.
+  bootstrapCalledForUserId = userId;
+  bootstrapInFlight = null;
 
   const run = bootstrapSession();
   bootstrapInFlight = run;
@@ -96,6 +122,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     resetPreferencesCache();
     resetClientStoresForAuthChange();
     bootstrapInFlight = null;
+    bootstrapCalledForUserId = null;
     setAuthHydrationInFlight(null);
     setAuthSessionState(null);
     setUser(null);
@@ -107,11 +134,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
     const hydration = (async () => {
       const {
-        data: { user: nextUser },
-      } = await supabase.auth.getUser();
+        data: { session: nextSession },
+      } = await supabase.auth.getSession();
+      const nextUser = nextSession?.user ?? null;
 
       if (!nextUser) {
         bootstrapInFlight = null;
+        bootstrapCalledForUserId = null;
         setAuthSessionState(null);
         setUser(null);
         setReady(true);
@@ -131,8 +160,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setAuthHydrationInFlight(null);
     }
 
-    if (getAuthUserId()) {
-      await bootstrapSessionOnce().catch(() => {});
+    const uid = getAuthUserId();
+    if (uid) {
+      await bootstrapSessionOnce(uid).catch(() => {});
     }
   }, []);
 
@@ -140,22 +170,53 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const supabase = createBrowserSupabase();
     let cancelled = false;
 
+    /**
+     * Initial hydration: verify the session with getUser() to guard against
+     * tampered local session data, then bootstrap once if authenticated.
+     *
+     * We intentionally do NOT call bootstrapSessionOnce from the SIGNED_IN
+     * handler while this hydration is still in-flight — the hydration chain
+     * below already handles the bootstrap. This prevents the double-reset bug
+     * where SIGNED_IN fires before getUser() resolves.
+     */
+    let initialHydrationDone = false;
+
     const authHydration = (async () => {
+      // Fast local check first — skip network getUser if no session exists.
+      const {
+        data: { session: initialSession },
+      } = await supabase.auth.getSession();
+      if (!initialSession?.user) {
+        bootstrapInFlight = null;
+        bootstrapCalledForUserId = null;
+        setAuthHydrationInFlight(null);
+        setAuthSessionState(null);
+        setUser(null);
+        setReady(true);
+        initialHydrationDone = true;
+        return;
+      }
+
+      // Verify with server to ensure session is legitimate.
       const {
         data: { user: initial },
       } = await supabase.auth.getUser();
       if (cancelled) return;
       if (!initial) {
         bootstrapInFlight = null;
+        bootstrapCalledForUserId = null;
         setAuthHydrationInFlight(null);
         setAuthSessionState(null);
         setUser(null);
         setReady(true);
+        initialHydrationDone = true;
         return;
       }
+
       setAuthSessionState(initial.id);
       setUser(initial);
       setReady(true);
+      initialHydrationDone = true;
     })();
 
     setAuthHydrationInFlight(authHydration);
@@ -166,11 +227,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
     });
 
+    // Bootstrap domain stores after initial hydration confirms the user.
     void (async () => {
       await authHydration.catch(() => {});
       if (cancelled) return;
-      if (getAuthUserId()) {
-        await bootstrapSessionOnce().catch(() => {});
+      const uid = getAuthUserId();
+      if (uid) {
+        await bootstrapSessionOnce(uid).catch(() => {});
       }
     })();
 
@@ -181,6 +244,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         resetPreferencesCache();
         resetClientStoresForAuthChange();
         bootstrapInFlight = null;
+        bootstrapCalledForUserId = null;
         setAuthHydrationInFlight(null);
         setAuthSessionState(null);
         setUser(null);
@@ -188,11 +252,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setReady(true);
         return;
       }
+
       if (event === "SIGNED_IN" && session?.user) {
-        setAuthSessionState(session.user.id);
+        const incomingUid = session.user.id;
+        setAuthSessionState(incomingUid);
         setUser(session.user);
         setReady(true);
-        await bootstrapSessionOnce().catch(() => {});
+
+        // If initial hydration hasn't finished yet, the bootstrap chain in the
+        // useEffect async block above will handle it. Avoid a double-bootstrap.
+        if (!initialHydrationDone) return;
+
+        await bootstrapSessionOnce(incomingUid).catch(() => {});
       }
     });
 

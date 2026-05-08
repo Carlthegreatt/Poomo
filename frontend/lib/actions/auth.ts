@@ -17,8 +17,19 @@ export type AuthActionResult =
   | { ok: true }
   | { ok: false; message: string };
 
+export type AuthSessionTokens = {
+  access_token: string;
+  refresh_token: string;
+  expires_at: number | null;
+  token_type: string;
+};
+
+export type SignInActionResult =
+  | { ok: true; session: AuthSessionTokens }
+  | { ok: false; message: string };
+
 export type SignUpActionResult =
-  | { ok: true; hasSession: true }
+  | { ok: true; hasSession: true; session: AuthSessionTokens }
   | { ok: true; hasSession: false; message: string }
   | { ok: false; message: string };
 
@@ -33,7 +44,7 @@ async function siteOrigin(): Promise<string> {
 
 export async function signInWithPasswordAction(
   input: unknown,
-): Promise<AuthActionResult> {
+): Promise<SignInActionResult> {
   const parsed = signInPasswordFormSchema.safeParse(input);
   if (!parsed.success) {
     return {
@@ -42,14 +53,25 @@ export async function signInWithPasswordAction(
     };
   }
   const supabase = await createServerSupabase();
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await supabase.auth.signInWithPassword({
     email: parsed.data.email,
     password: parsed.data.password,
   });
   if (error) {
     return { ok: false, message: mapAuthError(error, "signInPassword") };
   }
-  return { ok: true };
+  if (!data.session) {
+    return { ok: false, message: "No session returned" };
+  }
+  return {
+    ok: true,
+    session: {
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+      expires_at: data.session.expires_at ?? null,
+      token_type: data.session.token_type,
+    },
+  };
 }
 
 export async function signUpWithPasswordAction(
@@ -71,7 +93,16 @@ export async function signUpWithPasswordAction(
     return { ok: false, message: mapAuthError(error, "signUpPassword") };
   }
   if (data.session) {
-    return { ok: true, hasSession: true };
+    return {
+      ok: true,
+      hasSession: true,
+      session: {
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+        expires_at: data.session.expires_at ?? null,
+        token_type: data.session.token_type,
+      },
+    };
   }
   return { ok: true, hasSession: false, message: NO_SESSION_AFTER_SIGNUP };
 }

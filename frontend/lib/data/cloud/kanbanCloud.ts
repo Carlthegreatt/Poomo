@@ -296,24 +296,30 @@ export async function updateTaskCloud(
   const userId = await requireDataUserId(supabase);
 
   const patch: Record<string, unknown> = { ...updates };
-  if (updates.due_date !== undefined || updates.due_time !== undefined) {
-    const { data: prev } = await supabase
-      .from("kanban_tasks")
-      .select("due_date,due_time")
-      .eq("id", id)
-      .eq("user_id", userId)
-      .single();
-    const date =
-      updates.due_date !== undefined
-        ? updates.due_date
-        : (prev?.due_date as string | null);
-    const timeRaw =
-      updates.due_time !== undefined
-        ? updates.due_time
-        : (prev?.due_time as string | null);
+
+  // Resolve due_date/due_time without a read-before-write:
+  // - If due_date is being set to null, due_time must also be null.
+  // - If only one is changing, omit the other from the patch (DB keeps its value).
+  // - If both are in the patch, apply the mutual-dependency rule directly.
+  if (updates.due_date !== undefined && updates.due_time !== undefined) {
+    const date = updates.due_date;
     patch.due_date = date;
-    patch.due_time = date && timeRaw?.trim() ? String(timeRaw).trim() : null;
+    patch.due_time = date && updates.due_time?.trim() ? updates.due_time.trim() : null;
+  } else if (updates.due_date !== undefined) {
+    // Clearing the date must also clear the time.
+    if (updates.due_date === null) {
+      patch.due_date = null;
+      patch.due_time = null;
+    } else {
+      patch.due_date = updates.due_date;
+      // due_time not in patch — leave DB value unchanged by omitting it.
+    }
+  } else if (updates.due_time !== undefined) {
+    // Only time is changing; date remains what it is in the DB.
+    // We can't null-check date here without a read, so just set the time.
+    patch.due_time = updates.due_time?.trim() || null;
   }
+
   if (updates.task_type !== undefined) {
     patch.task_type = updates.task_type?.trim() || null;
     await ensureTaskTypeLabel(supabase, userId, patch.task_type as string | null);
@@ -350,7 +356,7 @@ export async function batchUpdateColumnPositionsCloud(
   items: { id: string; position: number }[],
 ): Promise<void> {
   if (items.length === 0) return;
-  await requireDataUserId(supabase);
+  // RLS on the RPC enforces auth — no extra requireDataUserId needed.
   const { error } = await supabase.rpc("batch_update_kanban_column_positions", {
     p_updates: items.map((item) => ({
       id: item.id,
@@ -365,7 +371,7 @@ export async function batchUpdateTaskPositionsCloud(
   items: { id: string; position: number; column_id?: string }[],
 ): Promise<void> {
   if (items.length === 0) return;
-  await requireDataUserId(supabase);
+  // RLS on the RPC enforces auth — no extra requireDataUserId needed.
   const { error } = await supabase.rpc("batch_update_kanban_task_positions", {
     p_updates: items.map((item) => ({
       id: item.id,

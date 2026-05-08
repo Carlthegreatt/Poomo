@@ -13,3 +13,12 @@ export const MODELS = [
   "gemma-4-31b-it",
   "gemma-4-26b-a4b-it",
 ] as const;
+
+export function getNimModels(): string[] {
+  const raw = process.env.NIM_MODELS?.trim();
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((model) => model.trim())
+    .filter(Boolean);
+}

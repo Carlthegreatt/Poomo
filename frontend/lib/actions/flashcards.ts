@@ -79,7 +79,7 @@ export async function createDeckAction(
 
 export async function updateDeckAction(
   input: unknown,
-): Promise<ActionResult<FlashcardDeck>> {
+): Promise<ActionResult<Omit<FlashcardDeck, "cards">>> {
   const parsed = updateDeckSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, code: "validation", message: parsed.error.issues[0]?.message ?? "Invalid input" };

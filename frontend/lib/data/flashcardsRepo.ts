@@ -40,7 +40,7 @@ export async function createDeck(
 export async function updateDeck(
   id: string,
   updates: Partial<Pick<FlashcardDeck, "title" | "color">>,
-): Promise<FlashcardDeck> {
+): Promise<Omit<FlashcardDeck, "cards">> {
   if (!isCloudDataBackend()) throw notSignedIn();
   const result = await updateDeckAction({ id, updates });
   if (!result.ok) throw new Error(result.message);

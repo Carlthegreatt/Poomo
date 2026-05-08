@@ -28,8 +28,7 @@ function mapNote(row: {
 export async function fetchNotesCloud(
   supabase: SupabaseClient,
 ): Promise<Note[]> {
-  // RLS policies filter by auth.uid() automatically.
-  // No need for requireDataUserId() — avoids a getUser() race during bootstrap.
+  // RLS policies filter by auth.uid() automatically — no requireDataUserId needed.
   const { data, error } = await supabase
     .from("notes")
     .select(
@@ -119,7 +118,7 @@ export async function saveNoteOrderCloud(
   supabase: SupabaseClient,
   notes: Note[],
 ): Promise<void> {
-  await requireDataUserId(supabase);
+  // RLS on the RPC enforces auth — no extra requireDataUserId needed.
   const p_updates = notes.map((n, position) => ({
     id: n.id,
     position,

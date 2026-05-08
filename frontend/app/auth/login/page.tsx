@@ -3,23 +3,19 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  signInWithPasswordAction,
-  signUpWithPasswordAction,
-} from "@/lib/actions/auth";
-import { useAuth } from "@/components/auth/SessionProvider";
+import { createBrowserSupabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   signInPasswordFormSchema,
   signUpPasswordFormSchema,
 } from "@/lib/auth/schemas";
+import { mapAuthError } from "@/lib/auth/errors";
 
 type Tab = "signin" | "signup";
 
 export default function AuthLoginPage() {
   const router = useRouter();
-  const { refreshSession } = useAuth();
   const [pending, startTransition] = useTransition();
   const [tab, setTab] = useState<Tab>("signin");
 
@@ -50,14 +46,18 @@ export default function AuthLoginPage() {
     }
     startTransition(async () => {
       try {
-        const result = await signInWithPasswordAction(parsed.data);
-        if (!result.ok) {
-          setPwError(result.message);
+        const supabase = createBrowserSupabase();
+        const { error } = await supabase.auth.signInWithPassword({
+          email: parsed.data.email,
+          password: parsed.data.password,
+        });
+        if (error) {
+          setPwError(mapAuthError(error, "signInPassword"));
           return;
         }
-        await refreshSession();
+        // onAuthStateChange(SIGNED_IN) fires immediately — SessionProvider
+        // picks it up and starts bootstrapping data. Just navigate.
         router.push("/");
-        router.refresh();
       } catch {
         setPwError("Something went wrong. Try again.");
       }
@@ -83,18 +83,24 @@ export default function AuthLoginPage() {
     }
     startTransition(async () => {
       try {
-        const result = await signUpWithPasswordAction(parsed.data);
-        if (!result.ok) {
-          setPwError(result.message);
+        const supabase = createBrowserSupabase();
+        const { data, error } = await supabase.auth.signUp({
+          email: parsed.data.email,
+          password: parsed.data.password,
+        });
+        if (error) {
+          setPwError(mapAuthError(error, "signUpPassword"));
           return;
         }
-        if (result.hasSession) {
-          await refreshSession();
+        if (data.session) {
+          // Session returned immediately (email confirmation disabled) — navigate.
           router.push("/");
-          router.refresh();
           return;
         }
-        setPwError(result.message);
+        // No session: email confirmation required.
+        setPwError(
+          "Check your email for a confirmation link before signing in.",
+        );
       } catch {
         setPwError("Something went wrong. Try again.");
       }

@@ -34,3 +34,20 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Environment
+
+This app expects server-side environment variables for AI provider keys. Create a `.env` file from `.env.example` in development and set the secrets in your deployment environment for production.
+
+- `NIM_API_KEY`: (recommended) NVIDIA NIM API key used for AI calls. Keep this secret and only available server-side.
+- `NIM_API_BASE`: Optional custom base URL for the NIM API. Defaults to `https://integrate.api.nvidia.com`.
+- `NIM_MODELS`: Comma-separated list of NIM model IDs to try in order.
+- `GEMINI_API_KEY`: Optional Google Gemini key used as a fallback while migrating.
+
+Example (development):
+
+```bash
+cp .env.example .env
+# then edit .env and add your keys
+```
+

@@ -4,7 +4,6 @@ import { getAuthUserId, waitForAuthHydration } from "@/lib/data/authSession";
 import { toUserMessage } from "@/lib/toUserMessage";
 import {
   fetchBoard,
-  getTaskTypeLabels,
   registerTaskTypeLabel,
   createColumn as apiCreateColumn,
   updateColumn as apiUpdateColumn,
@@ -310,9 +309,13 @@ export const useKanban = create<KanbanState>((set, get) => ({
 
     try {
       await apiUpdateTask(id, updates);
+      // Derive updated task types locally — no extra round-trip needed.
       if (updates.task_type !== undefined) {
-        const taskTypes = await getTaskTypeLabels();
-        set({ taskTypes });
+        const trimmedType = updates.task_type?.trim() || null;
+        const prevTypes = get().taskTypes;
+        if (trimmedType && !prevTypes.includes(trimmedType)) {
+          set({ taskTypes: [...prevTypes, trimmedType].sort() });
+        }
       }
     } catch {
       set((s) => ({

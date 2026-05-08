@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { toast } from "sonner";
-import { getAuthUserId } from "@/lib/data/authSession";
+import { getAuthUserId, waitForAuthHydration } from "@/lib/data/authSession";
 import { toUserMessage } from "@/lib/toUserMessage";
 import {
   fetchDecks,
@@ -51,6 +51,7 @@ export const useFlashcards = create<FlashcardsState>((set, get) => ({
 
   loadDecks: async (options?: { force?: boolean }) => {
     const force = options?.force ?? false;
+    await waitForAuthHydration();
     const uid = getAuthUserId();
     if (
       !force &&
@@ -115,7 +116,13 @@ export const useFlashcards = create<FlashcardsState>((set, get) => ({
     }));
 
     try {
-      await apiUpdateDeck(id, updates);
+      const updated = await apiUpdateDeck(id, updates);
+      // Merge server-returned metadata with existing cards — no card re-fetch needed.
+      set((s) => ({
+        decks: s.decks.map((d) =>
+          d.id === id ? { ...d, ...updated } : d,
+        ),
+      }));
     } catch {
       set((s) => ({
         decks: s.decks.map((d) => (d.id === id ? prev : d)),
@@ -156,9 +163,11 @@ export const useFlashcards = create<FlashcardsState>((set, get) => ({
   addCardToDeck: async (deckId, front, back) => {
     try {
       const card = await apiAddCard(deckId, { front, back });
-      // Reload from storage to get the updated deck
-      const decks = await fetchDecks();
-      set({ decks });
+      set((s) => ({
+        decks: s.decks.map((d) =>
+          d.id === deckId ? { ...d, cards: [...d.cards, card] } : d,
+        ),
+      }));
       return card;
     } catch {
       toast.error("Failed to add card");
@@ -168,9 +177,17 @@ export const useFlashcards = create<FlashcardsState>((set, get) => ({
 
   editCard: async (deckId, cardId, updates) => {
     try {
-      await apiUpdateCard(deckId, cardId, updates);
-      const decks = await fetchDecks();
-      set({ decks });
+      const updated = await apiUpdateCard(deckId, cardId, updates);
+      set((s) => ({
+        decks: s.decks.map((d) =>
+          d.id === deckId
+            ? {
+                ...d,
+                cards: d.cards.map((c) => (c.id === cardId ? updated : c)),
+              }
+            : d,
+        ),
+      }));
     } catch {
       toast.error("Failed to update card");
     }
@@ -179,8 +196,13 @@ export const useFlashcards = create<FlashcardsState>((set, get) => ({
   removeCard: async (deckId, cardId) => {
     try {
       await apiDeleteCard(deckId, cardId);
-      const decks = await fetchDecks();
-      set({ decks });
+      set((s) => ({
+        decks: s.decks.map((d) =>
+          d.id === deckId
+            ? { ...d, cards: d.cards.filter((c) => c.id !== cardId) }
+            : d,
+        ),
+      }));
       toast.success("Card deleted");
     } catch {
       toast.error("Failed to delete card");

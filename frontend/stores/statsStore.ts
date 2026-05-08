@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { toast } from "sonner";
 import {
+  getAuthUserId,
   isCloudDataBackend,
   waitForAuthHydration,
 } from "@/lib/data/authSession";
@@ -24,13 +25,25 @@ import {
   type LifetimeStats,
 } from "@/lib/statsCalculations";
 
+/** Coalesces concurrent `loadSessions` calls (bootstrap + page/chat context). */
+let sessionsLoadInFlight: Promise<void> | null = null;
+/** User id for which sessions were last hydrated. */
+let sessionsHydratedForUserId: string | null = null;
+
+/** Clears session-local stats cache so next auth session refetches from API. */
+export function resetStatsSessionData(): void {
+  sessionsLoadInFlight = null;
+  sessionsHydratedForUserId = null;
+  useStats.setState({ sessions: [], isLoading: false, error: null });
+}
+
 interface StatsState {
   sessions: FocusSession[];
   dailyGoal: number;
   isLoading: boolean;
   error: string | null;
 
-  loadSessions: () => Promise<void>;
+  loadSessions: (options?: { force?: boolean }) => Promise<void>;
   setDailyGoal: (goal: number) => void;
 
   getTodayCount: () => number;
@@ -48,21 +61,49 @@ export const useStats = create<StatsState>((set, get) => ({
   isLoading: false,
   error: null,
 
-  loadSessions: async () => {
+  loadSessions: async (options?: { force?: boolean }) => {
+    const force = options?.force ?? false;
     await waitForAuthHydration();
-    set({ isLoading: true, error: null });
+    const uid = getAuthUserId();
+    if (
+      !force &&
+      get().sessions.length > 0 &&
+      uid != null &&
+      sessionsHydratedForUserId === uid
+    ) {
+      if (get().isLoading) set({ isLoading: false });
+      return;
+    }
+    if (sessionsLoadInFlight) return sessionsLoadInFlight;
+
+    const run = (async () => {
+      const uidAtStart = getAuthUserId();
+      set({ isLoading: true, error: null });
+      try {
+        const sessions = await fetchSessions();
+        if (getAuthUserId() !== uidAtStart) {
+          set({ isLoading: false });
+          return;
+        }
+        sessionsHydratedForUserId = getAuthUserId();
+        set({
+          sessions,
+          isLoading: false,
+          dailyGoal: getDailyGoal(),
+          error: null,
+        });
+      } catch (err) {
+        const msg = toUserMessage(err, "Failed to load sessions");
+        set({ isLoading: false, error: msg });
+        toast.error(msg);
+      }
+    })();
+
+    sessionsLoadInFlight = run;
     try {
-      const sessions = await fetchSessions();
-      set({
-        sessions,
-        isLoading: false,
-        dailyGoal: getDailyGoal(),
-        error: null,
-      });
-    } catch (err) {
-      const msg = toUserMessage(err, "Failed to load sessions");
-      set({ isLoading: false, error: msg });
-      toast.error(msg);
+      await run;
+    } finally {
+      if (sessionsLoadInFlight === run) sessionsLoadInFlight = null;
     }
   },
 
